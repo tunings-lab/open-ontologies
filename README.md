@@ -39,6 +39,19 @@ No JVM. No Protégé.
 
 ---
 
+## What's New in v0.2
+
+Four PRs landed in the May 2026 release, all built on the **MCP-native** convention: the server provides validation and scaffolding primitives, the connected LLM (Claude over MCP) does the intelligence. No internal LLM clients, no API keys, no provider abstractions — the protocol already provides the model.
+
+- **KGCL drift output (#19)** — `onto_drift` can now emit results in the [Knowledge Graph Change Language](https://github.com/INCATools/kgcl) (CNL or structured JSON-LD) alongside the existing JSON. Instant OBO/BioPortal interop; "Terraform plan" output becomes machine-replayable.
+- **Borderline-candidate review for `onto_align` (#20)** — two-threshold bucketing (`auto_applied` / `borderline` / dropped) replaces the single `min_confidence` cliff. Borderline pairs carry rich `context` (labels, parents) so Claude can judge them in-conversation and record verdicts via the existing `onto_align_feedback` loop. MCP-native form of the LogMap-LLM "LLM-as-oracle" pattern (top-2 OAEI 2025 Bio-ML).
+- **`onto_shacl_check` (#21)** — structural dry-run for proposed SHACL shapes against the loaded ontology. Catches missing `sh:targetClass`, `sh:path`, `sh:class`, and unrecognised `sh:datatype` references before applying. The validation primitive Claude needs to iterate on LLM-authored SHACL.
+- **Oxigraph 0.5.8 migration (#22)** — `Store::query` ported to the non-deprecated `SparqlEvaluator` builder API. Unlocks **RDFC 1.0 canonicalisation** (W3C Recommendation, 21 May 2024) built-in, plus RDF 1.2 / SPARQL 1.2 / JSON-LD 1.1 / GeoSPARQL features available on demand.
+
+Zero new external dependencies across all four PRs. Full test suite (~290 tests) green; `cargo clippy --lib --tests -- -D warnings` clean.
+
+---
+
 ## Quick Start (MCP / CLI)
 
 ### Install
