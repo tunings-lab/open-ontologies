@@ -111,9 +111,15 @@ pub fn webhook_request_timeout_secs() -> u64 { WEBHOOK_TIMEOUT.load(Ordering::Re
 mod tests {
     use super::*;
 
+    // Both assertions live in ONE test so they run sequentially. They share
+    // global atomic state (`init_from_config` mutates the static accessors),
+    // and cargo runs tests in parallel by default — so if the two were
+    // separate `#[test]` functions, `init_overrides_values` could set the
+    // tableaux_max_depth to 250 mid-flight and cause `defaults_match_legacy_constants`
+    // to observe 250 instead of 100. Combining them serialises the race.
     #[test]
-    fn defaults_match_legacy_constants() {
-        // Without calling init_from_config the accessors return the
+    fn defaults_then_init_overrides_then_restore() {
+        // Phase 1: without calling init_from_config the accessors return the
         // original hardcoded defaults.
         assert_eq!(tableaux_max_depth(), 100);
         assert_eq!(tableaux_max_nodes(), 10_000);
@@ -121,10 +127,8 @@ mod tests {
         assert_eq!(repo_default_list_limit(), 1000);
         assert_eq!(imports_max_depth(), 3);
         assert!(imports_follow_remote());
-    }
 
-    #[test]
-    fn init_overrides_values() {
+        // Phase 2: init_from_config overrides the values.
         let mut cfg = Config::default();
         cfg.reasoner.tableaux_max_depth = 250;
         cfg.cache.hash_prefix_bytes = 128 * 1024;
@@ -134,8 +138,10 @@ mod tests {
         assert_eq!(cache_hash_prefix_bytes(), 128 * 1024);
         assert!(!imports_follow_remote());
 
-        // Restore defaults so subsequent tests in the same process aren't
-        // affected.
+        // Phase 3: restore defaults so subsequent tests in the same process
+        // (any test that reads these accessors) aren't affected.
         init_from_config(&Config::default());
+        assert_eq!(tableaux_max_depth(), 100);
+        assert!(imports_follow_remote());
     }
 }

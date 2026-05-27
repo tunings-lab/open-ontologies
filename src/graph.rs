@@ -217,7 +217,11 @@ impl GraphStore {
             let quad = quad?;
             serializer.serialize_triple(quad.as_ref())?;
         }
-        drop(serializer);
+        // `finish()` writes the final terminator (e.g. the trailing `.` on the
+        // last Turtle triple, or `</rdf:RDF>` for RDF/XML). Dropping the
+        // serializer skips this step, which produced truncated, unparseable
+        // output — see `convert` → `drift` round-trip on the Pizza ontology.
+        serializer.finish()?;
         Ok(String::from_utf8(buf)?)
     }
 
