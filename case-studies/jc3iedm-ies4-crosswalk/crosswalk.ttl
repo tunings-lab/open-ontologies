@@ -1,0 +1,99 @@
+# JC3IEDM ↔ IES4 Crosswalk (Sketch) — SKOS mappings for 10 entity types.
+# See README.md for methodology, scope, and the explicit "this is not authoritative" caveat.
+# Closes #26.
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# Placeholder JC3IEDM namespace — STANAG 5525 has no canonical web IRIs.
+# A real implementation would use NATO/MIP-issued IRIs.
+@prefix jc3:    <http://example.org/jc3iedm/> .
+
+# IES4 — using the canonical namespace shared by both the archived dstl/IES4
+# 4.3.1 baseline (via the `ies-4.3.1` marketplace preset) and the live
+# `IES-Org/ont-ies` mirror. Note: a small number of these IES IRIs may not
+# resolve directly; treat unresolved ones as IES Working Group future work
+# and document as such in PRs.
+@prefix ies:    <http://ies.data.gov.uk/ontology/ies4#> .
+
+# ── Crosswalk metadata ─────────────────────────────────────────────────
+<http://example.org/jc3iedm-ies4-crosswalk>
+    rdf:type owl:Ontology ;
+    dcterms:title "JC3IEDM ↔ IES4 Crosswalk (Sketch)" ;
+    dcterms:description "First-mover sketch crosswalk between JC3IEDM (NATO STANAG 5525) entity types and IES4 (UK MOD/DBT) 4D-ontology classes. Not authoritative. See README." ;
+    dcterms:license <https://opensource.org/licenses/MIT> ;
+    rdfs:seeAlso <https://github.com/fabio-rovai/open-ontologies/issues/26> .
+
+# ── 1. PERSON ──────────────────────────────────────────────────────────
+jc3:PERSON
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM PERSON entity"@en ;
+    skos:closeMatch ies:Person ;
+    rdfs:comment "Both subsume the population of human individuals. IES4 adds explicit 4D temporal extent and the role/state pattern (a JC3IEDM PERSON's 'rank' or 'role' becomes an ies:State with ies:isStateOf linking back to the person). Match degraded from exact to close to acknowledge this structural shift."@en .
+
+# ── 2. ORGANIZATION ────────────────────────────────────────────────────
+jc3:ORGANIZATION
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM ORGANIZATION entity"@en ;
+    skos:closeMatch ies:Organisation ;
+    rdfs:comment "Subsumes military formations, civilian organisations, and ad-hoc groups in both models. IES4 models membership as ies:MemberState (a 4D state) where JC3IEDM treats it as an AFFILIATION attribute on the member. UK English spelling (Organisation) in IES4."@en .
+
+# ── 3. MATERIEL ────────────────────────────────────────────────────────
+jc3:MATERIEL
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM MATERIEL entity"@en ;
+    skos:closeMatch ies:Asset ;
+    rdfs:comment "Equipment, supplies, vehicles, ordnance. JC3IEDM MATERIEL covers both bulk (logistic stock) and individual (this specific tank). IES4 ies:Asset is the closest extensional match; possession by an Organisation/Person is modelled as a 4D possession-state in IES4 vs as a relationship attribute in JC3IEDM."@en .
+
+# ── 4. FACILITY ────────────────────────────────────────────────────────
+jc3:FACILITY
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM FACILITY entity"@en ;
+    skos:closeMatch ies:BuiltStructure ;
+    rdfs:comment "Built environment objects — bases, depots, airfields, command posts. IES4 ies:BuiltStructure separates the physical structure from its operational use (an ies:Site or ies:UnitOfOperation owns the use). JC3IEDM FACILITY conflates structure and use; the mapping is close-match because the IES4 split is more granular."@en .
+
+# ── 5. LOCATION ────────────────────────────────────────────────────────
+jc3:LOCATION
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM LOCATION entity"@en ;
+    skos:exactMatch ies:Location ;
+    rdfs:comment "Spatial extent — points, areas, volumes, named places. Both models treat LOCATION as a Particular with geometric properties. This is the closest natural exactMatch in the sketch; both have crs / geometry / placename machinery as attributes/properties of the location particular itself."@en .
+
+# ── 6. EVENT ───────────────────────────────────────────────────────────
+jc3:EVENT
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM EVENT entity"@en ;
+    skos:closeMatch ies:Event ;
+    rdfs:comment "Both denote temporal occurrences with a beginning and end. IES4 Event REQUIRES participants per the ies4 enforce rule pack (events without participants flagged as incomplete); JC3IEDM EVENT permits looser modelling where participants are optional attributes. Match degraded from exact to close to acknowledge this constraint difference."@en .
+
+# ── 7. ACTION ──────────────────────────────────────────────────────────
+jc3:ACTION
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM ACTION entity"@en ;
+    skos:relatedMatch ies:Process ;
+    skos:relatedMatch ies:CommunicationEvent ;
+    rdfs:comment "JC3IEDM ACTION subsumes BOTH deliberate processes (a planned operation, a movement) AND communication acts (a transmission, a report). IES4 splits these — ies:Process for deliberate-doing, ies:CommunicationEvent for messaging. This is the only entity in this sketch where the JC3IEDM concept is BROADER than any single IES4 class, hence relatedMatch (not closeMatch) to flag the splitting work for future. A bidirectional implementation would dispatch on JC3IEDM ACTION subtypes."@en .
+
+# ── 8. CAPABILITY ──────────────────────────────────────────────────────
+jc3:CAPABILITY
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM CAPABILITY entity"@en ;
+    skos:closeMatch ies:PowerOfDisposition ;
+    rdfs:comment "Both encode an entity's ability to perform / disposition toward an action class. IES4 attaches PowerOfDisposition to a 4D state (the holder has this capability during this temporal extent); JC3IEDM treats CAPABILITY as a more static attribute. Close match — the underlying concept is the same, the temporal framing differs."@en .
+
+# ── 9. REPORTING-DATA ──────────────────────────────────────────────────
+jc3:REPORTING-DATA
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM REPORTING-DATA entity"@en ;
+    skos:closeMatch ies:Representation ;
+    rdfs:comment "Reports, messages, observations — information artefacts ABOUT operational particulars. IES4 frames these as ies:Representation (the report) of underlying ies:Particular (what is reported). JC3IEDM REPORTING-DATA blurs the report and its content; the IES4 separation enables clean provenance modelling. Close match because the extensions align even though the reification structure differs."@en .
+
+# ── 10. AFFILIATION ────────────────────────────────────────────────────
+jc3:AFFILIATION
+    rdf:type owl:Class ;
+    rdfs:label "JC3IEDM AFFILIATION entity"@en ;
+    skos:closeMatch ies:MemberState ;
+    rdfs:comment "JC3IEDM AFFILIATION is an attribute valued FRIENDLY / HOSTILE / NEUTRAL / UNKNOWN attached to a PERSON / ORGANIZATION / MATERIEL — a flat enum. IES4 ies:MemberState models it as a 4D state with start/end (this entity was affiliated with X during this period). This is the structural pattern shift JC3IEDM ↔ IES4 forces most clearly: snapshot enum becomes time-extended state. Close match conceptually; full transformation requires unpacking the JC3IEDM enum into IES4 state-temporal-extents."@en .
