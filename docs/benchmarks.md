@@ -20,7 +20,7 @@ The 4 missing classes are teaching artifacts (e.g., `UnclosedPizza`) that exist 
 
 ### IES4 Building Domain — BORO/4D
 
-The [IES4 standard](https://github.com/dstl/IES4) is the UK government's Information Exchange Standard for defence/intelligence.
+The [IES standard](https://informationexchangestandard.org/) (canonical repo: [`IES-Org/ont-ies`](https://github.com/IES-Org/ont-ies); custodian: Department for Business and Trade since March 2025; the legacy [`dstl/IES4`](https://github.com/dstl/IES4) repo is archived, last public release was 4.3.1 under MIT) is the UK government's Information Exchange Standard for defence, intelligence, and increasingly built-environment / cross-sector use.
 
 | Metric | Value |
 | ------ | ----- |

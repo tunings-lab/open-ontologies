@@ -195,7 +195,7 @@ See [ies-alignment.md](ies-alignment.md) for the full IES:Building alignment wal
 | **IES Tool** | `telicent-oss/ies-tool` | Python library + bundled v4.3 ontology + SHACL shapes |
 | **RDF Transform** | `telicent-oss/telicent-rdf-transform` | IES4 to IES-Next migration mappings |
 | **NDTP AI Extension** | `National-Digital-Twin/ndtp-ai-ontology-extension` | LLM-driven ontology extension tooling |
-| **IES4 (archived)** | `dstl/IES4` | Legacy v4 ontology + examples + full spec PDF |
+| **IES4 (archived, last MIT release v4.3.1)** | `dstl/IES4` | Legacy mirror; archived 4 Mar 2025 when custodianship moved from Dstl to DBT. Last public release 4.3.1 (3 Mar 2025) under MIT — pinnable as a reproducible compliance baseline. 4.3.2+ work continues in a private working group. Canonical successor is `IES-Org/ont-ies` (above), portal at [informationexchangestandard.org](https://informationexchangestandard.org/). |
 
 ## Benchmark Results
 
