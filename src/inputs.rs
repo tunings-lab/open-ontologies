@@ -389,6 +389,13 @@ pub struct OntoAlignInput {
     pub low_threshold: Option<f64>,
     /// If true, return candidates only without inserting triples (default false)
     pub dry_run: Option<bool>,
+    /// Fusion strategy for combining the per-signal scores into a confidence score.
+    /// One of "weighted_sum" (default — learned weights over the 7 signals, cold-start
+    /// equal-weighted) or "rrf" (Reciprocal Rank Fusion at k=60, validated by Agent-OM
+    /// at VLDB 2025). RRF doesn't need learned weights so it's a sensible cold-start
+    /// choice; the weighted_sum self-calibrates from `onto_align_feedback` over time.
+    #[serde(default)]
+    pub fusion: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]

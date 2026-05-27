@@ -1378,14 +1378,15 @@ impl OpenOntologiesServer {
         // Callers wanting the old strict behaviour pass low_threshold == high_threshold.
         let low = input.low_threshold.unwrap_or(0.4).min(high);
         let dry_run = input.dry_run.unwrap_or(false);
+        let fusion = input.fusion.as_deref().unwrap_or("weighted_sum");
 
-        match engine.align_with_thresholds(&source, target.as_deref(), high, low, dry_run) {
+        match engine.align_with_fusion(&source, target.as_deref(), high, low, dry_run, fusion) {
             Ok(result) => {
                 self.lineage().record(
                     &self.session_id,
                     "AL",
                     "align",
-                    &format!("high={},low={}", high, low),
+                    &format!("high={},low={},fusion={}", high, low, fusion),
                 );
                 result
             }

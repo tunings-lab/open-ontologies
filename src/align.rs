@@ -321,16 +321,8 @@ impl AlignmentEngine {
         self.align_with_thresholds(source, target, min_confidence, min_confidence, dry_run)
     }
 
-    /// Two-threshold alignment with borderline-candidate surfacing for LLM-orchestrated review.
-    ///
-    /// - candidates with confidence ≥ `high_threshold` land in `auto_applied`
-    ///   (and are persisted as triples unless `dry_run`)
-    /// - candidates with confidence in `[low_threshold, high_threshold)` land in `borderline`
-    ///   with enriched context (labels, parents) so the calling LLM can judge them and record
-    ///   verdicts via `onto_align_feedback`
-    /// - candidates below `low_threshold` are dropped
-    ///
-    /// If `low_threshold >= high_threshold`, no borderline bucket is produced (back-compat mode).
+    /// Two-threshold alignment with the default weighted-sum fusion (self-calibrating
+    /// weights). For RRF fusion or any future strategy, call `align_with_fusion` directly.
     pub fn align_with_thresholds(
         &self,
         source: &str,
@@ -339,8 +331,39 @@ impl AlignmentEngine {
         low_threshold: f64,
         dry_run: bool,
     ) -> anyhow::Result<String> {
+        self.align_with_fusion(source, target, high_threshold, low_threshold, dry_run, "weighted_sum")
+    }
+
+    /// Two-threshold alignment with borderline-candidate surfacing for LLM-orchestrated review,
+    /// parameterised by fusion strategy.
+    ///
+    /// `fusion` is one of:
+    /// - `"weighted_sum"` — combine per-signal scores with the self-calibrating weights
+    ///   learned from `onto_align_feedback` (default; equal weights at cold start)
+    /// - `"rrf"` — Reciprocal Rank Fusion at k=60 (Cormack et al., SIGIR 2009; validated for
+    ///   ontology alignment by Agent-OM at VLDB 2025). No learned weights required; useful
+    ///   as a cold-start baseline or alternative to the weighted sum on graphs where
+    ///   feedback hasn't been collected yet.
+    ///
+    /// Bucket semantics are identical to `align_with_thresholds`: candidates with
+    /// confidence ≥ `high_threshold` land in `auto_applied` (and are persisted unless
+    /// `dry_run`); those in `[low_threshold, high_threshold)` land in `borderline` with
+    /// enriched context; those below `low_threshold` are dropped.
+    pub fn align_with_fusion(
+        &self,
+        source: &str,
+        target: Option<&str>,
+        high_threshold: f64,
+        low_threshold: f64,
+        dry_run: bool,
+        fusion: &str,
+    ) -> anyhow::Result<String> {
         // Clamp: degenerate range means "everything above high_threshold; nothing borderline".
         let low_threshold = low_threshold.min(high_threshold);
+        // For RRF the inline weighted-sum confidence is throwaway (recomputed after
+        // collection). We collect all label-prefiltered candidates and only apply
+        // `low_threshold` to the FINAL fused score post-rerank.
+        let inline_low_threshold = if fusion == "rrf" { f64::NEG_INFINITY } else { low_threshold };
         // Load source into a temporary graph (detect format from content)
         let source_store = GraphStore::new();
         if std::path::Path::new(source).exists() {
@@ -427,8 +450,10 @@ impl AlignmentEngine {
                     signals.iter().zip(weights.iter()).map(|(s, w)| s * w).sum()
                 };
 
-                // Drop pairs below the low threshold entirely.
-                if confidence < low_threshold {
+                // Drop pairs below the low threshold entirely (for RRF, this is
+                // f64::NEG_INFINITY — we keep all label-prefiltered candidates and apply
+                // the real threshold after rerank).
+                if confidence < inline_low_threshold {
                     continue;
                 }
 
@@ -458,6 +483,17 @@ impl AlignmentEngine {
                     "applied": false,
                     "requires_review": requires_review,
                 }));
+            }
+        }
+
+        // RRF rerank: recompute confidence from per-signal rankings, then re-derive
+        // requires_review from the new confidence and apply the real low_threshold.
+        if fusion == "rrf" {
+            Self::rrf_rerank(&mut candidates);
+            candidates.retain(|c| c["confidence"].as_f64().unwrap_or(0.0) >= low_threshold);
+            for c in &mut candidates {
+                let conf = c["confidence"].as_f64().unwrap_or(0.0);
+                c["requires_review"] = serde_json::json!(conf < high_threshold);
             }
         }
 
@@ -579,6 +615,65 @@ impl AlignmentEngine {
             "threshold": high_threshold,
             "summary_for_review": summary_for_review,
         }).to_string())
+    }
+
+    /// Reciprocal Rank Fusion (Cormack, Clarke, Buettcher SIGIR 2009) at k=60.
+    /// For each per-signal ranking, accumulate `1 / (k + rank)` into each candidate's
+    /// RRF score. Normalise to `[0, 1]` against the max possible (a candidate that
+    /// is rank-1 in every signal), then overwrite each candidate's `confidence` field.
+    ///
+    /// `signals` is the list of signal field-names in the candidate's `signals` object
+    /// to fuse over. By design RRF is robust to signals on different scales — it only
+    /// uses the per-signal ordering, not the raw scores. This is the property that
+    /// makes it a sensible cold-start alternative to the learned weighted-sum.
+    fn rrf_rerank(candidates: &mut [serde_json::Value]) {
+        const K: f64 = 60.0;
+        if candidates.is_empty() {
+            return;
+        }
+
+        #[cfg(feature = "embeddings")]
+        const SIGNALS: &[&str] = &[
+            "label_similarity",
+            "property_overlap",
+            "parent_overlap",
+            "instance_overlap",
+            "restriction_similarity",
+            "neighborhood_similarity",
+            "embedding_similarity",
+        ];
+        #[cfg(not(feature = "embeddings"))]
+        const SIGNALS: &[&str] = &[
+            "label_similarity",
+            "property_overlap",
+            "parent_overlap",
+            "instance_overlap",
+            "restriction_similarity",
+            "neighborhood_similarity",
+        ];
+
+        let n = candidates.len();
+        let mut rrf = vec![0.0_f64; n];
+
+        for sig in SIGNALS {
+            let mut idx: Vec<usize> = (0..n).collect();
+            idx.sort_by(|&a, &b| {
+                let sa = candidates[a]["signals"][sig].as_f64().unwrap_or(0.0);
+                let sb = candidates[b]["signals"][sig].as_f64().unwrap_or(0.0);
+                sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            for (rank_zero, &i) in idx.iter().enumerate() {
+                let rank = (rank_zero + 1) as f64;
+                rrf[i] += 1.0 / (K + rank);
+            }
+        }
+
+        // Max possible: rank 1 in every signal -> SIGNALS.len() * 1/(K + 1)
+        let max_possible = SIGNALS.len() as f64 * (1.0 / (K + 1.0));
+        for (i, c) in candidates.iter_mut().enumerate() {
+            let normalised = (rrf[i] / max_possible).clamp(0.0, 1.0);
+            c["confidence"] = serde_json::json!((normalised * 1000.0).round() / 1000.0);
+        }
     }
 
     /// Classify the relation type based on signal strengths.
