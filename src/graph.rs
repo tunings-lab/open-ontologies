@@ -163,6 +163,51 @@ impl GraphStore {
         Ok(after.saturating_sub(before))
     }
 
+    /// Canonicalise the store's blank nodes via RDFC 1.0 (W3C Recommendation,
+    /// 21 May 2024) using SHA-256, returning a NEW `GraphStore` whose blank
+    /// nodes have deterministic `_:c14n<n>` identifiers derived from the graph
+    /// structure.
+    ///
+    /// This is the principled successor to per-callsite "filter `_:` IRIs out
+    /// of the SPARQL result set" — for any operation that depends on stable
+    /// identity across reparses (drift detection, hashing, signature
+    /// comparison), canonicalisation preserves the semantic content of
+    /// anonymous restriction classes / quoted axioms instead of dropping them.
+    ///
+    /// **Warning:** per the W3C spec, canonical IDs are a function of the
+    /// whole graph. Mutating one quad can shift many bnode IDs, so this
+    /// is poorly suited to producing minimal-diff outputs over arbitrary
+    /// edits. For drift detection specifically, the existing rename-pairing
+    /// logic in `drift.rs::detect()` will re-match shifted IDs via the
+    /// label/domain/range/hierarchy/individual signal ensemble, so the
+    /// net result is more informative than the previous "filter and forget"
+    /// approach (PR #14, @rustforrecess) that dropped bnode content entirely.
+    pub fn canonicalize_blank_nodes(&self) -> anyhow::Result<GraphStore> {
+        use oxigraph::model::dataset::{CanonicalizationAlgorithm, CanonicalizationHashAlgorithm};
+        use oxigraph::model::Dataset;
+
+        let store = self.store.lock().unwrap();
+        let mut dataset = Dataset::new();
+        for quad in store.iter() {
+            let q = quad?;
+            dataset.insert(&q);
+        }
+        drop(store);
+
+        dataset.canonicalize(CanonicalizationAlgorithm::Rdfc10 {
+            hash_algorithm: CanonicalizationHashAlgorithm::Sha256,
+        });
+
+        let new_gs = GraphStore::new();
+        {
+            let new_store = new_gs.store.lock().unwrap();
+            for quad in dataset.iter() {
+                new_store.insert(quad)?;
+            }
+        }
+        Ok(new_gs)
+    }
+
     pub fn serialize(&self, format: &str) -> anyhow::Result<String> {
         let store = self.store.lock().unwrap();
         let rdf_format = Self::parse_format(format)?;

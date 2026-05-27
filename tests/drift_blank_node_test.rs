@@ -52,7 +52,16 @@ fn drift_of_same_ontology_with_restrictions_returns_no_changes() {
 }
 
 #[test]
-fn drift_vocabulary_excludes_blank_node_iris() {
+fn real_named_change_detected_alongside_canonicalised_bnodes() {
+    // Original spirit of this test (PR #14 era): assert that bnode IRIs don't
+    // pollute the named-vocabulary diff. Under RDFC 1.0 canonicalisation we
+    // ALLOW bnodes in the diff — they carry deterministic `_:c14n<n>` IDs and
+    // represent real semantic content (anonymous restriction classes). The
+    // assertion is now twofold:
+    //
+    //   1. Any bnode IRIs that DO appear use the canonical `_:c14n` prefix
+    //      (proving canonicalisation ran), NOT raw parser-generated IDs.
+    //   2. The named class rename is still detected.
     let db = setup();
     let detector = DriftDetector::new(db);
 
@@ -83,10 +92,14 @@ fn drift_vocabulary_excludes_blank_node_iris() {
         .chain(parsed["removed"].as_array().unwrap().iter())
     {
         let s = iri.as_str().unwrap();
-        assert!(
-            !s.starts_with("_:"),
-            "drift report leaked a blank-node IRI into named-vocabulary diff: {}", s
-        );
+        if s.starts_with("_:") {
+            assert!(
+                s.starts_with("_:c14n"),
+                "blank-node IRI in diff lacks the canonical `_:c14n` prefix — \
+                 canonicalisation may not have run on this snapshot: {}",
+                s
+            );
+        }
     }
 
     assert!(
@@ -99,4 +112,41 @@ fn drift_vocabulary_excludes_blank_node_iris() {
             .any(|v| v.as_str().unwrap().contains("VeggiePizza")),
         "real addition (VeggiePizza) should still be detected"
     );
+}
+
+#[test]
+fn canonical_bnode_ids_are_stable_across_independent_reparses() {
+    // The reparse-stability guarantee that PR #14's filter approximated by
+    // exclusion. Under canonicalisation we get the same property AND keep
+    // bnode content: two independent loads of the same Turtle string canonicalise
+    // to the same `_:c14n<n>` identifiers, so `detect(x, x)` produces zero noise.
+    let db = setup();
+    let detector = DriftDetector::new(db);
+
+    // Two structurally distinct ontologies (a wider variety of restriction
+    // shapes), each reparsed twice and diffed against itself.
+    for ttl in &[PIZZA_WITH_RESTRICTION, r#"
+        @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+        @prefix ex:   <http://example.org/> .
+        ex:Vehicle a owl:Class .
+        ex:Engine  a owl:Class .
+        ex:hasEngine a owl:ObjectProperty .
+        ex:MotorisedVehicle a owl:Class ;
+            owl:equivalentClass [
+                a owl:Class ;
+                owl:intersectionOf (
+                    ex:Vehicle
+                    [ a owl:Restriction ;
+                      owl:onProperty ex:hasEngine ;
+                      owl:minCardinality 1 ]
+                )
+            ] .
+    "#] {
+        let report = detector.detect(ttl, ttl).expect("detect");
+        let parsed: serde_json::Value = serde_json::from_str(&report).unwrap();
+        assert!(parsed["added"].as_array().unwrap().is_empty());
+        assert!(parsed["removed"].as_array().unwrap().is_empty());
+        assert!(parsed["likely_renames"].as_array().unwrap().is_empty());
+        assert!(parsed["drift_velocity"].as_f64().unwrap() < 0.01);
+    }
 }

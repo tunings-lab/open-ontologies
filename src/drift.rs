@@ -14,11 +14,21 @@ impl DriftDetector {
     }
 
     /// Detect drift between two Turtle strings.
+    ///
+    /// Each snapshot is canonicalised via RDFC 1.0 (W3C Recommendation, 21 May 2024,
+    /// SHA-256) before vocabulary extraction. The earlier per-callsite "filter `_:`
+    /// IRIs out of SPARQL results" (PR #14, @rustforrecess) protected the rename
+    /// detector from spurious bnode noise on reparse — canonicalisation preserves the
+    /// same protection (identical graphs reparse to identical canonical IDs) while
+    /// keeping anonymous restriction classes / quoted axioms visible in the diff
+    /// instead of dropping them entirely.
     pub fn detect(&self, v1_turtle: &str, v2_turtle: &str) -> anyhow::Result<String> {
-        let store1 = Arc::new(GraphStore::new());
-        let store2 = Arc::new(GraphStore::new());
-        store1.load_turtle(v1_turtle, None)?;
-        store2.load_turtle(v2_turtle, None)?;
+        let raw1 = GraphStore::new();
+        let raw2 = GraphStore::new();
+        raw1.load_turtle(v1_turtle, None)?;
+        raw2.load_turtle(v2_turtle, None)?;
+        let store1 = Arc::new(raw1.canonicalize_blank_nodes()?);
+        let store2 = Arc::new(raw2.canonicalize_blank_nodes()?);
 
         let v1_vocab = self.extract_vocabulary(&store1);
         let v2_vocab = self.extract_vocabulary(&store2);
@@ -184,15 +194,15 @@ impl DriftDetector {
     fn extract_vocabulary(&self, store: &GraphStore) -> HashMap<String, VocabEntry> {
         let mut vocab = HashMap::new();
 
-        // Drop blank nodes — they're anonymous restriction classes etc.
-        // and get fresh IDs on every reparse, so they generate spurious
-        // add/remove/rename noise between two snapshots of the same file.
-        let is_named = |iri: &str| !iri.starts_with("_:");
+        // Blank nodes are canonicalised upstream in `detect()` via RDFC 1.0, so
+        // they carry deterministic `_:c14n<n>` identifiers stable across reparses.
+        // They participate in the vocab diff like any other node — the previous
+        // `_:`-prefix filter (PR #14) is no longer needed.
 
         // Classes
         let class_query = "SELECT DISTINCT ?c WHERE { ?c a <http://www.w3.org/2002/07/owl#Class> }";
         if let Ok(json) = store.sparql_select(class_query) {
-            for iri in parse_iris(&json, "c").into_iter().filter(|i| is_named(i)) {
+            for iri in parse_iris(&json, "c") {
                 vocab.entry(iri.clone()).or_insert_with(|| VocabEntry {
                     iri,
                     kind: "class".to_string(),
@@ -209,7 +219,7 @@ impl DriftDetector {
             { ?p a <http://www.w3.org/2002/07/owl#DatatypeProperty> } \
         }";
         if let Ok(json) = store.sparql_select(prop_query) {
-            for iri in parse_iris(&json, "p").into_iter().filter(|i| is_named(i)) {
+            for iri in parse_iris(&json, "p") {
                 vocab.entry(iri.clone()).or_insert_with(|| VocabEntry {
                     iri,
                     kind: "property".to_string(),
