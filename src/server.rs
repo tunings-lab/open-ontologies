@@ -1486,10 +1486,23 @@ impl OpenOntologiesServer {
         let mut embedded_count = 0;
         let mut errors: Vec<String> = Vec::new();
 
+        let mut enriched_count: usize = 0;
         for (iri, label) in &class_labels {
+            // GenOM-style enrichment: if the caller supplied a description for this
+            // IRI, embed THAT instead of the bare label. Descriptions carry richer
+            // semantic context (definition prose, synonyms, role in the ontology),
+            // which the GenOM paper showed lifts alignment F1 vs label-only embedding.
+            let (text_to_embed, used_description) = match input
+                .descriptions
+                .as_ref()
+                .and_then(|m| m.get(iri.as_str()))
+            {
+                Some(desc) if !desc.trim().is_empty() => (desc.as_str(), true),
+                _ => (label.as_str(), false),
+            };
             // Compute the text embedding (may await an HTTP call) BEFORE
             // locking the non-Send VecStore mutex.
-            match embedder.embed(label).await {
+            match embedder.embed(text_to_embed).await {
                 Ok(text_vec) => {
                     let struct_vec = struct_embeddings.get(iri)
                         .cloned()
@@ -1497,6 +1510,9 @@ impl OpenOntologiesServer {
                     let mut vecstore = self.vecstore.lock().unwrap();
                     vecstore.upsert(iri, &text_vec, &struct_vec);
                     embedded_count += 1;
+                    if used_description {
+                        enriched_count += 1;
+                    }
                 }
                 Err(e) => errors.push(format!("{}: {}", iri, e)),
             }
@@ -1512,6 +1528,7 @@ impl OpenOntologiesServer {
         serde_json::json!({
             "ok": true,
             "embedded": embedded_count,
+            "enriched": enriched_count,
             "total_classes": class_labels.len(),
             "text_dim": embedder.dim(),
             "struct_dim": struct_dim,

@@ -436,6 +436,15 @@ pub struct OntoEmbedInput {
     pub struct_dim: Option<usize>,
     /// Structural training epochs. Default: 100
     pub struct_epochs: Option<usize>,
+    /// Optional map from class IRI to a free-text description used for text-embedding
+    /// in place of the class's rdfs:label. When set, classes present in the map are
+    /// embedded from their description (richer semantic context); classes absent from
+    /// the map fall back to the existing label-based embedding. This is the
+    /// MCP-native form of the GenOM pattern (Mensa et al. 2025, accepted World Wide
+    /// Web Journal): instead of the server calling an LLM to author descriptions, the
+    /// connected orchestrator (Claude) authors them in-conversation and passes them
+    /// in this map. Net new dependencies: zero.
+    pub descriptions: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -502,4 +511,36 @@ pub struct AlignOntologiesInput {
     pub source_path: String,
     /// Path to the target ontology file
     pub target_path: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn onto_embed_input_accepts_optional_descriptions_map() {
+        // GenOM enrichment: caller supplies {iri → description} mappings.
+        // The input must deserialize when the map is provided.
+        let json = serde_json::json!({
+            "struct_dim": 32,
+            "descriptions": {
+                "http://ex.org/Cat": "A domestic feline, kept as a companion animal.",
+                "http://ex.org/Dog": "A domestic canid, kept as a companion or working animal."
+            }
+        });
+        let parsed: OntoEmbedInput = serde_json::from_value(json).expect("deserialize");
+        let desc = parsed.descriptions.expect("descriptions field present");
+        assert_eq!(desc.len(), 2);
+        assert!(desc.get("http://ex.org/Cat").unwrap().contains("feline"));
+    }
+
+    #[test]
+    fn onto_embed_input_descriptions_default_is_none() {
+        // Existing callers that don't pass `descriptions` must still
+        // deserialize correctly (back-compat).
+        let json = serde_json::json!({});
+        let parsed: OntoEmbedInput = serde_json::from_value(json).expect("deserialize");
+        assert!(parsed.descriptions.is_none());
+        assert!(parsed.struct_dim.is_none());
+    }
 }
