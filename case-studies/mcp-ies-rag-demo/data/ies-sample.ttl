@@ -1,0 +1,90 @@
+# Synthetic IES4-conformant knowledge graph for the MCP-over-IES-RAG demo.
+# A small, illustrative dataset showing 4D modelling of identity-stable
+# entities (Person, Organisation, Location) and their state-extended
+# memberships, role-holdings, and event participations across time.
+#
+# Intentionally small (~30 individuals, ~80 triples) so the demo is
+# self-contained. The 4D shape — state-as-time-extent, event-with-participants,
+# role-as-state-of-being-X — is what enables temporal-coherent RAG.
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix ies:    <http://ies.data.gov.uk/ontology/ies4#> .
+@prefix demo:   <http://example.org/ies-rag-demo/> .
+
+# ── People (identity-stable Particulars) ───────────────────────────────
+demo:alice a ies:Person ; rdfs:label "Alice Patel"@en .
+demo:bob   a ies:Person ; rdfs:label "Bob Eze"@en .
+demo:cara  a ies:Person ; rdfs:label "Cara Lindqvist"@en .
+demo:dan   a ies:Person ; rdfs:label "Dan Okonkwo"@en .
+
+# ── Organisations ──────────────────────────────────────────────────────
+demo:acmeLondon  a ies:Organisation ; rdfs:label "Acme Logistics London"@en .
+demo:acmeBristol a ies:Organisation ; rdfs:label "Acme Logistics Bristol"@en .
+
+# ── Locations ──────────────────────────────────────────────────────────
+demo:london   a ies:Location ; rdfs:label "London"@en .
+demo:bristol  a ies:Location ; rdfs:label "Bristol"@en .
+
+# ── Role / Membership states (4D — each is a time-bounded "state of being X") ──
+# Alice was Bristol's depot manager from 2020-01-01 to 2023-09-30, then moved
+# to London as operations director from 2023-10-01 onwards.
+demo:aliceAsBristolManager a ies:State ;
+    rdfs:label "Alice as Bristol depot manager"@en ;
+    ies:isStateOf demo:alice ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2020-01-01/2023-09-30"^^xsd:string ] ;
+    demo:roleIn demo:acmeBristol ;
+    rdfs:comment "JC3IEDM-style snapshot would just say 'Alice is BristolManager'. IES4's 4D split makes the temporal extent first-class so RAG can answer 'who was the Bristol manager in 2022?' deterministically."@en .
+
+demo:aliceAsLondonDirector a ies:State ;
+    rdfs:label "Alice as London operations director"@en ;
+    ies:isStateOf demo:alice ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2023-10-01/.."^^xsd:string ] ;
+    demo:roleIn demo:acmeLondon .
+
+demo:bobAsLondonAnalyst a ies:State ;
+    rdfs:label "Bob as London logistics analyst"@en ;
+    ies:isStateOf demo:bob ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2019-06-15/.."^^xsd:string ] ;
+    demo:roleIn demo:acmeLondon .
+
+demo:caraAsBristolManager a ies:State ;
+    rdfs:label "Cara as Bristol depot manager (Alice's successor)"@en ;
+    ies:isStateOf demo:cara ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2023-10-01/.."^^xsd:string ] ;
+    demo:roleIn demo:acmeBristol ;
+    rdfs:comment "Same role-class as demo:aliceAsBristolManager, different time-extent and bearer. Models the role transition that occurred when Alice moved."@en .
+
+demo:danAsBristolDriver a ies:State ;
+    rdfs:label "Dan as Bristol depot driver"@en ;
+    ies:isStateOf demo:dan ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2021-03-01/.."^^xsd:string ] ;
+    demo:roleIn demo:acmeBristol .
+
+# ── Events with explicit participants (per the ies4 enforce rule pack) ──
+demo:bristolFireDrillMar2024 a ies:Event ;
+    rdfs:label "Bristol depot fire drill, March 2024"@en ;
+    ies:inLocation demo:bristol ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2024-03-14"^^xsd:string ] ;
+    ies:isParticipantIn demo:cara , demo:dan ;
+    rdfs:comment "Cara (Bristol manager from 2023-10) and Dan (Bristol driver from 2021-03) both participate. Alice (former Bristol manager, now in London) does NOT — and the 4D model knows this because her aliceAsBristolManager state ends 2023-09. Flat document RAG would lose this distinction."@en .
+
+demo:londonRestructuringNov2023 a ies:Event ;
+    rdfs:label "London office restructuring announcement, Nov 2023"@en ;
+    ies:inLocation demo:london ;
+    ies:inPeriod [ a ies:ParticularPeriod ;
+                   ies:periodRepresentation "2023-11-22"^^xsd:string ] ;
+    ies:isParticipantIn demo:alice , demo:bob .
+
+# ── Helper properties (purely for the demo's role-attachment pattern) ──
+demo:roleIn a owl:ObjectProperty ;
+    rdfs:label "roleIn"@en ;
+    rdfs:comment "Demo-only helper linking a role-state to the organisation in which the role is held. Real IES4 modelling would use ies:isMemberOf chained through state-extents; this shortcut keeps the demo readable."@en .

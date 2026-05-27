@@ -3,5 +3,7 @@
 data/
 !case-studies/heritage-aerial/data/
 !case-studies/heritage-aerial/data/**
+!case-studies/mcp-ies-rag-demo/data/
+!case-studies/mcp-ies-rag-demo/data/**
 # Ignore generated OWL files in root, but keep benchmark references
 /*.owl
