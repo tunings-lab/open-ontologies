@@ -112,7 +112,7 @@ When evolving an ontology in production, follow this Terraform-style cycle. Clau
 
 ### Enforce
 
-4. Call `onto_enforce` with a rule pack (`generic`, `boro`, `value_partition`, `hierarchy`) — checks design pattern compliance
+4. Call `onto_enforce` with a rule pack (`generic`, `boro`, `value_partition`, `hierarchy`, `ies4`) — checks design pattern compliance. The `ies4` pack catches 4D-modelling violations specific to the UK Information Exchange Standard (particular/ClassOfEntity overlap as error; State without `isStateOf` and Event without participant pattern as warnings).
 5. Fix any violations before applying
 
 ### Apply
@@ -182,6 +182,34 @@ When exploring or aligning ontologies using semantic embeddings:
 
 7. When running `onto_align`, embedding similarity is automatically used as signal #7 if embeddings are loaded
 8. This catches semantically equivalent classes that have different labels (e.g., Vehicle ↔ Automobile)
+
+### Borderline-Candidate Review (LLM-as-Oracle Pattern)
+
+`onto_align` partitions candidates into three buckets by confidence:
+
+- `auto_applied`: confidence ≥ `high_threshold` (default 0.85) — applied as triples
+- `borderline`: confidence in [`low_threshold`, `high_threshold`) (default low 0.4) — surfaced with rich `context` (source/target labels, source/target parents) for review
+- below `low_threshold`: dropped
+
+When borderline pairs are present, the tool returns a `summary_for_review` string instructing you (the connected LLM) to:
+
+1. **Inspect each borderline pair** — read its `context` block (labels, parent classes) and the per-signal breakdown in `signals`. The structural context tells you whether the pair represents a true match obscured by label difference, a partial overlap that warrants `skos:closeMatch`, or a false positive that needs rejection.
+2. **Decide accept / reject** based on the structural and lexical evidence in the conversation, plus any external knowledge you have about the domain.
+3. **Call `onto_align_feedback`** for each verdict — this writes to the SQLite feedback table and the self-calibrating-weights model learns from it. Future `onto_align` runs will weight the seven signals better.
+
+This is the MCP-native form of the LogMap-LLM "LLM-as-oracle" pattern (Jiménez-Ruiz et al., EACL 2026, top-2 OAEI 2025 Bio-ML). The server provides the scorer + borderline surface; you do the judging in-conversation; the feedback loop closes via existing tools.
+
+## Architecture Convention: MCP-Native Tool Design
+
+When a tool needs LLM-style judgment (NL generation, semantic matching, accept/reject decisions), the server must NOT embed its own LLM client. The connected orchestrator (you, over MCP) is already a capable LLM. The server's role is to provide:
+
+- **Validation primitives** that the orchestrator can't compute structurally itself (e.g., `onto_shacl_check` verifies proposed SHACL references real classes/properties in the loaded ontology)
+- **Scaffolding outputs** that give the orchestrator the schema context it needs to author against (e.g., `onto_stats`, `onto_query` for SPARQL, `borderline` candidates with parent IRIs)
+- **Feedback channels** so the orchestrator's verdicts can train the server's self-calibrating models (e.g., `onto_align_feedback`, `onto_lint_feedback`, `onto_enforce_feedback`)
+
+Concrete shape: if a tool description starts with "the server will call an LLM to ..." — flip the design. Have the server return what needs judging; do the judging in the conversation; pipe verdicts back through a feedback tool.
+
+This pattern is the project convention going forward. See `onto_align` borderline buckets (commit a7d3990) and `onto_shacl_check` (commit 9867133) for canonical examples.
 
 ## Enforcer Rules (Optional)
 
