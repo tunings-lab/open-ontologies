@@ -64,6 +64,14 @@ pub static CATALOGUE: &[MarketplaceEntry] = &[
         format: RdfFormat::Turtle,
     },
     MarketplaceEntry {
+        id: "ies-4.3.1",
+        name: "IES4 v4.3.1 (frozen MIT baseline)",
+        description: "Last public MIT-licensed snapshot of IES4 from the archived dstl/IES4 repo (tag v4.3.1, released 3 Mar 2025). Use as a reproducible compliance baseline when you need a frozen reference that won't shift with upstream changes. 4.3.2+ development continues in the IES-Org working group — use the `ies` preset for live work.",
+        domain: "upper-ontology",
+        url: "https://raw.githubusercontent.com/dstl/IES4/v4.3.1/IES%20Specification%20Docs/ies4.ttl",
+        format: RdfFormat::Turtle,
+    },
+    MarketplaceEntry {
         id: "bfo",
         name: "BFO (Basic Formal Ontology)",
         description: "ISO 21838 upper-level ontology — foundational categories for continuants and occurrents",
@@ -325,5 +333,43 @@ pub fn format_name(fmt: RdfFormat) -> &'static str {
         RdfFormat::NQuads => "nquads",
         RdfFormat::TriG => "trig",
         _ => "unknown",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn find(id: &str) -> Option<&MarketplaceEntry> {
+        CATALOGUE.iter().find(|e| e.id == id)
+    }
+
+    #[test]
+    fn ies_4_3_1_preset_exists_and_targets_archived_dstl_v4_3_1_tag() {
+        // Per #25 — `ies-4.3.1` is the frozen MIT-licensed baseline. Must
+        // point at the dstl/IES4 archived repo at tag `v4.3.1`, NOT main
+        // or any other branch (the whole point of the preset is reproducible
+        // pinning).
+        let entry = find("ies-4.3.1").expect(
+            "ies-4.3.1 marketplace preset missing — was the entry removed by mistake?",
+        );
+        assert!(entry.url.contains("dstl/IES4"), "url should reference the archived dstl/IES4 repo; got {}", entry.url);
+        assert!(entry.url.contains("/v4.3.1/"), "url MUST pin to tag v4.3.1; got {}", entry.url);
+        assert!(entry.url.ends_with("ies4.ttl"), "expected Turtle artefact; got {}", entry.url);
+        assert!(matches!(entry.format, RdfFormat::Turtle));
+        assert_eq!(entry.domain, "upper-ontology");
+    }
+
+    #[test]
+    fn ies_4_3_1_does_not_collide_with_live_ies_preset() {
+        // The live `ies` preset (pointing at IES-Org main) and the frozen
+        // `ies-4.3.1` preset must coexist with distinct IDs and URLs —
+        // they serve different purposes.
+        let live = find("ies").expect("live `ies` preset missing");
+        let frozen = find("ies-4.3.1").expect("frozen `ies-4.3.1` preset missing");
+        assert_ne!(live.id, frozen.id);
+        assert_ne!(live.url, frozen.url);
+        assert!(live.url.contains("IES-Org"), "live preset should point at IES-Org");
+        assert!(frozen.url.contains("dstl/IES4"), "frozen preset should point at archived dstl/IES4");
     }
 }
