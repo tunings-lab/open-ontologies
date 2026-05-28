@@ -929,6 +929,20 @@ impl OpenOntologiesServer {
             .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e))
     }
 
+
+    #[tool(name = "onto_align_flora", description = "End-to-end FLORA alignment (#38). Takes the currently-loaded graph as source and a Turtle string for target, enumerates plausible class-pairs (pre-filtered by shared label tokens), extracts the four FLORA signals per pair (label Jaccard, parent overlap, sibling overlap, datatype overlap) from the structural neighbourhood, runs the 10-rule Mamdani inference engine, and returns only the accept-verdict pairs. Companion to `onto_align_fuzzy` (per-pair adjudication when you already have signals).")]
+    async fn onto_align_flora(&self, Parameters(input): Parameters<OntoAlignFloraInput>) -> String {
+        let target = std::sync::Arc::new(crate::graph::GraphStore::new());
+        if let Err(e) = target.load_turtle(&input.target_ttl, None) {
+            return format!(r#"{{"error":"target_ttl failed to parse: {}"}}"#, e);
+        }
+        let low = input.low_threshold.unwrap_or(0.4);
+        let high = input.high_threshold.unwrap_or(0.65);
+        let report = crate::flora_pipeline::align_with_flora(&self.graph, &target, low, high);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
     #[tool(name = "onto_align_fuzzy", description = "FLORA-style fuzzy-logic alignment adjudication (#38, ISWC 2025 Best Paper). Caller supplies per-pair signals (`label_jaccard`, `parent_overlap`, `sibling_overlap`, `datatype_overlap` all in [0,1]) plus low/high thresholds; server combines via the chosen t-norm (`min` / `product` / `lukasiewicz`) and emits verdict `\"accept\"` / `\"borderline\"` / `\"reject\"` plus a rule trace. Embedding-free, interpretable, complements the HNSW candidate-generator pipeline.")]
     async fn onto_align_fuzzy(&self, Parameters(input): Parameters<OntoAlignFuzzyInput>) -> String {
         let signals: crate::align_fuzzy::FuzzySignals = match serde_json::from_str(&input.signals_json) {
@@ -977,6 +991,17 @@ impl OpenOntologiesServer {
         }
     }
 
+    #[tool(name = "eval_rag_mmrag", description = "Parse a full mmRAG dataset JSON and score it in one call. Convenience wrapper around `onto_mmrag_parse` + `eval_rag`. Returns the same `RagEvalReport` as `eval_rag` including faithfulness, answer-jaccard, and rouge1 when records carry generated_answer / gold_answer / retrieved_text.")]
+    async fn eval_rag_mmrag(&self, Parameters(input): Parameters<OntoEvalRagMmragInput>) -> String {
+        let qas = match crate::eval_rag::parse_mmrag_dataset(&input.dataset_json) {
+            Ok(q) => q,
+            Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
+        };
+        let report = crate::eval_rag::evaluate(&qas);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
     #[tool(name = "eval_rag", description = "mmRAG benchmark scoring (#41, ISWC 2025). Input is a JSON array of {question_id, gold_iri, retrieved: [iri, ...]}. Returns Hit@{3,5,10}, MRR, exact-match-at-1, and per-question rank (0 = gold not retrieved).")]
     async fn eval_rag(&self, Parameters(input): Parameters<OntoEvalRagInput>) -> String {
         let qas: Vec<crate::eval_rag::RagQa> = match serde_json::from_str(&input.qa_json) {
@@ -1012,6 +1037,19 @@ impl OpenOntologiesServer {
         let report = crate::eval_alignment::evaluate(&reference, &computed);
         serde_json::to_string(&report)
             .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "onto_shape_induce", description = "Kastor-style data-driven SHACL shape induction (#36, K-CAP 2025). For each property subset up to `max_size`, compute support (fraction of class instances having all properties) and confidence (fraction of any-instances-with-properties that are class members). Returns the top-k candidates ranked by `support × confidence`, each carrying a ready-to-use SHACL NodeShape Turtle block. Filter via `min_support` (default 0.1) and `min_confidence` (default 0.5).")]
+    async fn onto_shape_induce(&self, Parameters(input): Parameters<OntoShapeInduceInput>) -> String {
+        let max = input.max_size.unwrap_or(3);
+        let top_k = input.top_k.unwrap_or(10);
+        let min_support = input.min_support.unwrap_or(0.1);
+        let min_confidence = input.min_confidence.unwrap_or(0.5);
+        match crate::shape_combinatorics::induce_shapes(&self.graph, &input.class_iri, max, top_k, min_support, min_confidence) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
     }
 
     #[tool(name = "onto_shape_combinatorics", description = "Enumerate the property-combination lattice for a class (#36, K-CAP 2025 Kastor). Returns subsets of the class's rdfs:domain properties up to `max_size` (default 3). Used by shape-induction algorithms to enumerate candidate SHACL shapes from data.")]
@@ -1113,6 +1151,25 @@ impl OpenOntologiesServer {
         let include_abox = input.include_abox.unwrap_or(false);
         match crate::segment_retrieve::retrieve_segment(&self.graph, &input.seed_iris, hops, include_abox) {
             Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_coevolve_dependency_graph", description = "Build the shape→OWL-dependency map for a SHACL document. For each NodeShape, returns the set of target classes, path properties, and class-constraint targets. Powers `onto_owl_shacl_coevolve_incremental`.")]
+    async fn onto_coevolve_dependency_graph(&self, Parameters(input): Parameters<OntoCoevolveDepGraphInput>) -> String {
+        match crate::coevolve::build_dependency_graph(&input.shapes_ttl) {
+            Ok(d) => serde_json::to_string(&d)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_owl_shacl_coevolve_incremental", description = "Incremental coevolve check (#33 follow-on, K-CAP 2025). Given a list of IRIs that changed since the last validation, identify which SHACL shapes are affected (via the shape→OWL dependency graph) and skip SHACL validation entirely when no shape's dependencies overlap. Returns the affected-shapes report plus validation output (or 'no_affected_shapes' sentinel when nothing fires).")]
+    async fn onto_owl_shacl_coevolve_incremental(&self, Parameters(input): Parameters<OntoCoevolveIncrementalInput>) -> String {
+        let profile = input.profile.unwrap_or_else(|| "owl-rl".to_string());
+        match crate::coevolve::incremental_check(&self.graph, &input.shapes_ttl, &input.changed_iris, &profile) {
+            Ok(r) => serde_json::to_string(&r)
                 .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),
         }

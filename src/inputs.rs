@@ -623,6 +623,22 @@ fn default_alpha_pub() -> f64 {
     0.05
 }
 
+/// Input for `onto_align_flora` (#38) — end-to-end FLORA alignment over
+/// every plausible class-pair across the loaded source and a caller-
+/// supplied target ontology (as Turtle).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoAlignFloraInput {
+    /// Target ontology as Turtle. The source side is the currently-loaded
+    /// graph.
+    pub target_ttl: String,
+    /// Lower threshold for FLORA verdict bucketing (default 0.4).
+    #[serde(default)]
+    pub low_threshold: Option<f64>,
+    /// Upper threshold (default 0.65).
+    #[serde(default)]
+    pub high_threshold: Option<f64>,
+}
+
 /// Input for `onto_align_fuzzy` (#38, FLORA ISWC 2025 Best Paper).
 #[derive(Deserialize, JsonSchema)]
 pub struct OntoAlignFuzzyInput {
@@ -657,8 +673,17 @@ pub struct OntoPolicyCheckInput {
 /// Input for `eval_rag` (#41, mmRAG ISWC 2025).
 #[derive(Deserialize, JsonSchema)]
 pub struct OntoEvalRagInput {
-    /// JSON array `[{question_id, gold_iri, retrieved: [iri, iri, ...]}, ...]`.
+    /// JSON array `[{question_id, gold_iri, retrieved, generated_answer?,
+    /// gold_answer?, retrieved_text?}, ...]`.
     pub qa_json: String,
+}
+
+/// Input for `eval_rag_mmrag` — parse a full mmRAG dataset JSON and score
+/// it in one call.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoEvalRagMmragInput {
+    /// JSON array of mmRAG records (see `MmRagRecord` in `src/eval_rag.rs`).
+    pub dataset_json: String,
 }
 
 /// Input for `onto_eval_alignment` (#31, OAEI-style P/R/F1).
@@ -676,6 +701,24 @@ pub struct OntoShapeCombinatoricsInput {
     pub class_iri: String,
     #[serde(default)]
     pub max_size: Option<usize>,
+}
+
+/// Input for `onto_shape_induce` — Kastor data-driven SHACL induction.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoShapeInduceInput {
+    pub class_iri: String,
+    /// Maximum subset size to enumerate (default 3, capped at 2^max for sanity).
+    #[serde(default)]
+    pub max_size: Option<usize>,
+    /// Return the top-k candidates by support × confidence (default 10).
+    #[serde(default)]
+    pub top_k: Option<usize>,
+    /// Filter: require this minimum support fraction (default 0.1).
+    #[serde(default)]
+    pub min_support: Option<f64>,
+    /// Filter: require this minimum confidence fraction (default 0.5).
+    #[serde(default)]
+    pub min_confidence: Option<f64>,
 }
 
 /// Input for `borderline_partition` (#37).
@@ -739,6 +782,23 @@ pub struct OntoVerifyCqInput {
 #[derive(Deserialize, JsonSchema)]
 pub struct OntoCqVerdictsListInput {
     pub cq_id: String,
+}
+
+/// Input for `onto_owl_shacl_coevolve_incremental` (#33 follow-on).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoCoevolveIncrementalInput {
+    pub shapes_ttl: String,
+    /// IRIs that changed since the last validation (classes, properties).
+    /// Shapes whose dependencies don't intersect this set are skipped.
+    pub changed_iris: Vec<String>,
+    #[serde(default)]
+    pub profile: Option<String>,
+}
+
+/// Input for `onto_coevolve_dependency_graph` (#33 follow-on).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoCoevolveDepGraphInput {
+    pub shapes_ttl: String,
 }
 
 /// Input for `onto_segment_retrieve` (#34, SEMANTiCS 2025 GrOWL-RAG) —
