@@ -929,6 +929,205 @@ impl OpenOntologiesServer {
             .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e))
     }
 
+    #[tool(name = "onto_align_fuzzy", description = "FLORA-style fuzzy-logic alignment adjudication (#38, ISWC 2025 Best Paper). Caller supplies per-pair signals (`label_jaccard`, `parent_overlap`, `sibling_overlap`, `datatype_overlap` all in [0,1]) plus low/high thresholds; server combines via the chosen t-norm (`min` / `product` / `lukasiewicz`) and emits verdict `\"accept\"` / `\"borderline\"` / `\"reject\"` plus a rule trace. Embedding-free, interpretable, complements the HNSW candidate-generator pipeline.")]
+    async fn onto_align_fuzzy(&self, Parameters(input): Parameters<OntoAlignFuzzyInput>) -> String {
+        let signals: crate::align_fuzzy::FuzzySignals = match serde_json::from_str(&input.signals_json) {
+            Ok(s) => s,
+            Err(e) => return format!(r#"{{"error":"invalid signals_json: {}"}}"#, e),
+        };
+        let tnorm = match input.tnorm.as_deref() {
+            Some("product") => crate::align_fuzzy::TNorm::Product,
+            Some("lukasiewicz") => crate::align_fuzzy::TNorm::Lukasiewicz,
+            _ => crate::align_fuzzy::TNorm::Min,
+        };
+        let decision = crate::align_fuzzy::adjudicate(&signals, tnorm, input.low_threshold, input.high_threshold);
+        serde_json::to_string(&decision)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "onto_policy_register", description = "Register an ARGOS-style policy rule (#40, ISWC 2025 WOP). `effect` is `\"allow\"` or `\"deny\"`; `condition` is a SPARQL ASK that can use the `{target}` placeholder. Pairs with `onto_policy_check` and `onto_certify_action` — CIVeX gates causal risk, ARGOS gates authorisation.")]
+    async fn onto_policy_register(&self, Parameters(input): Parameters<OntoPolicyRegisterInput>) -> String {
+        let rule = crate::policy::PolicyRule {
+            name: input.name.clone(),
+            effect: input.effect,
+            condition: input.condition,
+            description: input.description,
+        };
+        match crate::policy::register_rule(&self.db, &rule) {
+            Ok(()) => format!(r#"{{"ok":true,"registered":"{}"}}"#, input.name),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_policy_list", description = "List all registered ARGOS policy rules.")]
+    async fn onto_policy_list(&self) -> String {
+        match crate::policy::list_rules(&self.db) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_policy_check", description = "Evaluate a proposed action's target IRIs against every registered policy rule. Verdict is `\"deny\"` if any `deny` rule fires for any target, else `\"allow\"`. Returns per-rule fire status for audit.")]
+    async fn onto_policy_check(&self, Parameters(input): Parameters<OntoPolicyCheckInput>) -> String {
+        match crate::policy::check_action(&self.db, &self.graph, &input.target_iris) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "eval_rag", description = "mmRAG benchmark scoring (#41, ISWC 2025). Input is a JSON array of {question_id, gold_iri, retrieved: [iri, ...]}. Returns Hit@{3,5,10}, MRR, exact-match-at-1, and per-question rank (0 = gold not retrieved).")]
+    async fn eval_rag(&self, Parameters(input): Parameters<OntoEvalRagInput>) -> String {
+        let qas: Vec<crate::eval_rag::RagQa> = match serde_json::from_str(&input.qa_json) {
+            Ok(q) => q,
+            Err(e) => return format!(r#"{{"error":"invalid qa_json: {}"}}"#, e),
+        };
+        let report = crate::eval_rag::evaluate(&qas);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "onto_classify_el", description = "Classify the loaded ontology in the OWL-EL fragment (#30). Materialises OWL-RL-ext entailments in a sandbox copy of the graph and emits every distinct subsumption `?sub rdfs:subClassOf ?super` (transitive closure, deduplicated, owl:Thing-trivial pairs removed). For deep SHOIQ subsumption, use `onto_dl_check` / `onto_dl_explain`.")]
+    async fn onto_classify_el(&self) -> String {
+        match crate::classify_el::classify(&self.graph) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_eval_alignment", description = "OAEI-style P/R/F1 scoring (#31). Both inputs are JSON arrays of {source, target, relation}; entries match on exact triple equality. Returns precision, recall, F1, TP/FP/FN counts.")]
+    async fn onto_eval_alignment(&self, Parameters(input): Parameters<OntoEvalAlignmentInput>) -> String {
+        let reference: Vec<crate::eval_alignment::AlignmentEntry> =
+            match serde_json::from_str(&input.reference_json) {
+                Ok(r) => r,
+                Err(e) => return format!(r#"{{"error":"invalid reference_json: {}"}}"#, e),
+            };
+        let computed: Vec<crate::eval_alignment::AlignmentEntry> =
+            match serde_json::from_str(&input.computed_json) {
+                Ok(c) => c,
+                Err(e) => return format!(r#"{{"error":"invalid computed_json: {}"}}"#, e),
+            };
+        let report = crate::eval_alignment::evaluate(&reference, &computed);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "onto_shape_combinatorics", description = "Enumerate the property-combination lattice for a class (#36, K-CAP 2025 Kastor). Returns subsets of the class's rdfs:domain properties up to `max_size` (default 3). Used by shape-induction algorithms to enumerate candidate SHACL shapes from data.")]
+    async fn onto_shape_combinatorics(&self, Parameters(input): Parameters<OntoShapeCombinatoricsInput>) -> String {
+        let max = input.max_size.unwrap_or(3);
+        match crate::shape_combinatorics::enumerate(&self.graph, &input.class_iri, max) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "borderline_partition", description = "Generalised borderline-pair partitioning (#37, NORA NeurIPS 2025). Takes a list of {id, score, context} candidates plus low+high thresholds; partitions into auto_accept (>= high), borderline ([low, high)), auto_reject (< low) and emits a review summary the orchestrator's LLM can act on. Pairs with `borderline_record_verdict`.")]
+    async fn borderline_partition(&self, Parameters(input): Parameters<BorderlinePartitionInput>) -> String {
+        let candidates: Vec<crate::borderline_loop::Candidate> =
+            match serde_json::from_str(&input.candidates_json) {
+                Ok(c) => c,
+                Err(e) => return format!(r#"{{"error":"invalid candidates_json: {}"}}"#, e),
+            };
+        let report = crate::borderline_loop::partition(candidates, input.low_threshold, input.high_threshold);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "borderline_record_verdict", description = "Persist an orchestrator's verdict on a borderline candidate (#37). verdict must be \"accept\" or \"reject\". Namespaces let independent borderline loops coexist.")]
+    async fn borderline_record_verdict(&self, Parameters(input): Parameters<BorderlineRecordVerdictInput>) -> String {
+        let v = crate::borderline_loop::BorderlineVerdict {
+            candidate_id: input.candidate_id.clone(),
+            namespace: input.namespace.unwrap_or_else(|| "default".to_string()),
+            verdict: input.verdict,
+            rationale: input.rationale,
+        };
+        match crate::borderline_loop::record_verdict(&self.db, &v) {
+            Ok(()) => format!(r#"{{"ok":true,"candidate_id":"{}"}}"#, input.candidate_id),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_extract_scaffold", description = "Build a schema-guided structured-extraction scaffold for a class (#28, OntoGPT SPIRES MCP-native). Returns the class metadata (label, comment), the property schema derived from rdfs:domain triples that target the class, and a ready-to-use prompt template the orchestrator can hand to its LLM. The server doesn't run the LLM; it scaffolds the prompt and validates the LLM's output via `onto_extract_validate`.")]
+    async fn onto_extract_scaffold(&self, Parameters(input): Parameters<OntoExtractScaffoldInput>) -> String {
+        match crate::extract_scaffold::build_scaffold(&self.graph, &input.class_iri) {
+            Ok(s) => serde_json::to_string(&s)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_extract_validate", description = "Validate an LLM-supplied extraction (JSON array of objects) against a scaffold previously emitted by `onto_extract_scaffold`. Returns per-instance valid/invalid counts and field-level issue reports.")]
+    async fn onto_extract_validate(&self, Parameters(input): Parameters<OntoExtractValidateInput>) -> String {
+        let scaffold: crate::extract_scaffold::ExtractionScaffold =
+            match serde_json::from_str(&input.scaffold_json) {
+                Ok(s) => s,
+                Err(e) => return format!(r#"{{"error":"invalid scaffold_json: {}"}}"#, e),
+            };
+        match crate::extract_scaffold::validate_extraction(&scaffold, &input.extraction_json) {
+            Ok(r) => serde_json::to_string(&r)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_cq_run", description = "Run a batch of competency questions (CQs) against the loaded ontology (#29). Each CQ has an id, a natural-language question, a SPARQL query, and an optional expected_min_rows. Returns per-CQ pass/fail plus VSPO-pitfall hints (P10: empty result, P11: no rdfs:label, P12: > 10k rows). Pairs with `onto_verify_cq` for the LLM-judgement loop.")]
+    async fn onto_cq_run(&self, Parameters(input): Parameters<OntoCqRunInput>) -> String {
+        let cqs: Vec<crate::cq::CompetencyQuestion> = match serde_json::from_str(&input.cqs_json) {
+            Ok(c) => c,
+            Err(e) => return format!(r#"{{"error":"invalid cqs_json: {}"}}"#, e),
+        };
+        let report = crate::cq::run_cq_suite(&self.graph, &cqs);
+        serde_json::to_string(&report)
+            .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e))
+    }
+
+    #[tool(name = "onto_verify_cq", description = "Persist an LLM-supplied (or human-supplied) verdict on a CQ result (#39, ISWC 2025 Lippolis). verdict must be one of \"correct\", \"incorrect\", \"partial\". Server stores verdicts; the LLM does the judging. Pairs with `onto_cq_run`.")]
+    async fn onto_verify_cq(&self, Parameters(input): Parameters<OntoVerifyCqInput>) -> String {
+        let v = crate::cq::CqVerdict {
+            cq_id: input.cq_id.clone(),
+            verdict: input.verdict,
+            rationale: input.rationale,
+            judge: input.judge,
+        };
+        match crate::cq::verify_cq(&self.db, &v) {
+            Ok(()) => format!(r#"{{"ok":true,"cq_id":"{}"}}"#, input.cq_id),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_cq_verdicts_list", description = "List all stored verdicts for a CQ id, most-recent first.")]
+    async fn onto_cq_verdicts_list(&self, Parameters(input): Parameters<OntoCqVerdictsListInput>) -> String {
+        match crate::cq::list_cq_verdicts(&self.db, &input.cq_id) {
+            Ok(v) => serde_json::to_string(&v)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_segment_retrieve", description = "Retrieve a TBox-slice neighbourhood of seed IRIs for grounding LLM reasoning (#34, SEMANTiCS 2025 GrOWL-RAG). Walks `rdfs:subClassOf` / `subPropertyOf` / `domain` / `range` + `owl:equivalentClass` / `equivalentProperty` / `disjointWith` / `inverseOf` to `hops` depth (default 2). Returns the slice as Turtle plus IRI/triple counts and any frontier IRIs hit at the hop budget. Pairs with `graph_projection_lossy_check`: this retrieves, that audits. Pass `include_abox=true` to also pull instance triples for each seed.")]
+    async fn onto_segment_retrieve(&self, Parameters(input): Parameters<OntoSegmentRetrieveInput>) -> String {
+        let hops = input.hops.unwrap_or(2);
+        let include_abox = input.include_abox.unwrap_or(false);
+        match crate::segment_retrieve::retrieve_segment(&self.graph, &input.seed_iris, hops, include_abox) {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_owl_shacl_coevolve_check", description = "Combined OWL+SHACL validation (#33, K-CAP 2025). Materialises OWL-RL entailments into a sandbox copy of the loaded graph, then runs SHACL validation against the closure. Returns both the pre-reasoning and post-reasoning conformance verdicts plus the count of triples the reasoner added. Catches SHACL constraints that pass against the raw ABox but fail after inference (e.g. instances that inherit a parent class via rdfs:subClassOf and then violate a parent-class shape). Original graph is NOT mutated.")]
+    async fn onto_owl_shacl_coevolve_check(&self, Parameters(input): Parameters<OntoOwlShaclCoevolveInput>) -> String {
+        let profile = input.profile.unwrap_or_else(|| "owl-rl".to_string());
+        match crate::coevolve::coevolve_check(&self.graph, &input.shapes_ttl, &profile) {
+            Ok(report) => serde_json::to_string(&report)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
     #[tool(name = "graph_projection_lossy_check", description = "Audit a projected Turtle slice against the loaded ontology's full neighbourhood of the seed IRIs. Reports dropped predicates, dropped object IRIs, per-seed coverage ratio, and aggregate coverage. Pair with onto_segment_retrieve when the slice is being passed to a downstream LLM — knowing what was left behind lets the caller decide whether the slice is sufficient. Per IJCAI 2025 'How to Mitigate Information Loss in KGs for GraphRAG'.")]
     async fn graph_projection_lossy_check(&self, Parameters(input): Parameters<GraphProjectionLossyCheckInput>) -> String {
         match crate::projection_check::check_projection_loss(&self.graph, &input.source_iris, &input.projected_ttl) {
@@ -1019,6 +1218,88 @@ impl OpenOntologiesServer {
             _ => schema.apply(&self.graph, &self.db, &bindings),
         };
         match outcome {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    // ── Full BC+ semantics (#43 follow-on) ──────────────────────────────
+
+    #[tool(name = "onto_action_apply_concurrent", description = "Fire a tick of concurrent BC+ actions atomically. All steps are pre-computed against the pre-tick state, conflict-checked (add-vs-remove of the same triple across distinct steps), then committed as a single batch. If any conflict OR any registered invariant fails post-commit, the entire tick is rolled back and NO step is applied. Non-deterministic schemas in a concurrent tick are rejected — pre-sample with `apply_with_seed` first.")]
+    async fn onto_action_apply_concurrent(&self, Parameters(input): Parameters<OntoActionApplyConcurrentInput>) -> String {
+        let steps: Vec<crate::dynamics_bcplus::ConcurrentStep> = input.steps.into_iter()
+            .map(|s| crate::dynamics_bcplus::ConcurrentStep {
+                action_name: s.action_name,
+                bindings: s.bindings,
+            })
+            .collect();
+        match crate::dynamics_bcplus::apply_concurrent(&self.db, &self.graph, &steps) {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_invariant_register", description = "Persist a BC+ static causal law (SPARQL ASK invariant). The query MUST return `true` for the law to hold; concurrent ticks that violate any registered invariant are rolled back. Body can be a full ASK query or just the body inside `{ ... }`.")]
+    async fn onto_invariant_register(&self, Parameters(input): Parameters<OntoInvariantRegisterInput>) -> String {
+        let law = crate::dynamics_bcplus::StaticCausalLaw {
+            name: input.name.clone(),
+            ask_query: input.ask_query,
+            description: input.description,
+        };
+        match crate::dynamics_bcplus::register_invariant(&self.db, &law) {
+            Ok(()) => format!(r#"{{"ok":true,"registered":"{}"}}"#, input.name),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_invariant_list", description = "List all registered BC+ static causal laws (invariants).")]
+    async fn onto_invariant_list(&self) -> String {
+        match crate::dynamics_bcplus::list_invariants(&self.db) {
+            Ok(laws) => serde_json::to_string(&laws)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_invariant_remove", description = "Remove a registered BC+ invariant by name.")]
+    async fn onto_invariant_remove(&self, Parameters(input): Parameters<OntoInvariantRemoveInput>) -> String {
+        match crate::dynamics_bcplus::remove_invariant(&self.db, &input.name) {
+            Ok(removed) => format!(r#"{{"removed":{}}}"#, removed),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_invariant_check", description = "Evaluate every registered BC+ invariant against the current graph and return the names + descriptions of any that fail. Empty list means every invariant holds.")]
+    async fn onto_invariant_check(&self) -> String {
+        match crate::dynamics_bcplus::check_invariants(&self.db, &self.graph) {
+            Ok(violations) => serde_json::to_string(&violations)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_default_register", description = "Register a BC+ default-value law. When the `condition_ask` SPARQL ASK returns `true`, the listed `defaults` triples are asserted (added if not already present) on the next call to `onto_default_apply`. Idempotent.")]
+    async fn onto_default_register(&self, Parameters(input): Parameters<OntoDefaultRegisterInput>) -> String {
+        let defaults: Vec<(String, String, String)> = input.defaults.into_iter()
+            .filter_map(|t| if t.len() == 3 { Some((t[0].clone(), t[1].clone(), t[2].clone())) } else { None })
+            .collect();
+        let law = crate::dynamics_bcplus::DefaultLaw {
+            name: input.name.clone(),
+            condition_ask: input.condition_ask,
+            defaults,
+            description: input.description,
+        };
+        match crate::dynamics_bcplus::register_default(&self.db, &law) {
+            Ok(()) => format!(r#"{{"ok":true,"registered":"{}"}}"#, input.name),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_default_apply", description = "Apply every registered BC+ default-value law whose condition currently holds. Adds only triples that don't already exist. Returns the names of laws that fired and the triples added.")]
+    async fn onto_default_apply(&self) -> String {
+        match crate::dynamics_bcplus::apply_defaults(&self.db, &self.graph) {
             Ok(result) => serde_json::to_string(&result)
                 .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),

@@ -599,6 +599,150 @@ fn default_alpha_pub() -> f64 {
     0.05
 }
 
+/// Input for `onto_align_fuzzy` (#38, FLORA ISWC 2025 Best Paper).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoAlignFuzzyInput {
+    /// Caller-supplied signals JSON: `{label_jaccard, parent_overlap,
+    /// sibling_overlap, datatype_overlap}` all in `[0, 1]`.
+    pub signals_json: String,
+    /// One of `"min"`, `"product"`, `"lukasiewicz"`. Default `"min"`.
+    #[serde(default)]
+    pub tnorm: Option<String>,
+    pub low_threshold: f64,
+    pub high_threshold: f64,
+}
+
+/// Input for `onto_policy_register` (#40, ARGOS ISWC 2025 WOP).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoPolicyRegisterInput {
+    pub name: String,
+    /// `"allow"` or `"deny"`.
+    pub effect: String,
+    /// SPARQL ASK (may include `{target}` placeholder).
+    pub condition: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Input for `onto_policy_check` (#40).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoPolicyCheckInput {
+    pub target_iris: Vec<String>,
+}
+
+/// Input for `eval_rag` (#41, mmRAG ISWC 2025).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoEvalRagInput {
+    /// JSON array `[{question_id, gold_iri, retrieved: [iri, iri, ...]}, ...]`.
+    pub qa_json: String,
+}
+
+/// Input for `onto_eval_alignment` (#31, OAEI-style P/R/F1).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoEvalAlignmentInput {
+    /// Reference alignment as JSON array of `{source, target, relation}`.
+    pub reference_json: String,
+    /// Computed alignment in the same shape.
+    pub computed_json: String,
+}
+
+/// Input for `onto_shape_combinatorics` (#36).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoShapeCombinatoricsInput {
+    pub class_iri: String,
+    #[serde(default)]
+    pub max_size: Option<usize>,
+}
+
+/// Input for `borderline_partition` (#37).
+#[derive(Deserialize, JsonSchema)]
+pub struct BorderlinePartitionInput {
+    /// JSON array `[{id, score, context?}, ...]`.
+    pub candidates_json: String,
+    pub low_threshold: f64,
+    pub high_threshold: f64,
+}
+
+/// Input for `borderline_record_verdict` (#37).
+#[derive(Deserialize, JsonSchema)]
+pub struct BorderlineRecordVerdictInput {
+    pub candidate_id: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    /// Either "accept" or "reject".
+    pub verdict: String,
+    #[serde(default)]
+    pub rationale: Option<String>,
+}
+
+/// Input for `onto_extract_scaffold` (#28, OntoGPT SPIRES MCP-native).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoExtractScaffoldInput {
+    /// Class IRI to build the extraction prompt for.
+    pub class_iri: String,
+}
+
+/// Input for `onto_extract_validate` (#28 companion).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoExtractValidateInput {
+    /// The scaffold previously emitted by `onto_extract_scaffold` (JSON).
+    pub scaffold_json: String,
+    /// The LLM's extraction (must be a JSON array of objects).
+    pub extraction_json: String,
+}
+
+/// Input for `onto_cq_run` (#29, competency-question runner).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoCqRunInput {
+    /// Inline JSON array of competency questions
+    /// `[{id, question, sparql, expected_min_rows?}, ...]`.
+    pub cqs_json: String,
+}
+
+/// Input for `onto_verify_cq` (#39, LLM-assisted CQ verification).
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoVerifyCqInput {
+    pub cq_id: String,
+    /// One of `"correct"`, `"incorrect"`, `"partial"`.
+    pub verdict: String,
+    #[serde(default)]
+    pub rationale: Option<String>,
+    #[serde(default)]
+    pub judge: Option<String>,
+}
+
+/// Input for `onto_cq_verdicts_list`.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoCqVerdictsListInput {
+    pub cq_id: String,
+}
+
+/// Input for `onto_segment_retrieve` (#34, SEMANTiCS 2025 GrOWL-RAG) —
+/// retrieve a TBox-slice neighbourhood for grounding LLM reasoning.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoSegmentRetrieveInput {
+    /// Seed IRIs whose neighbourhoods to extract.
+    pub seed_iris: Vec<String>,
+    /// BFS hop budget. Default 2.
+    #[serde(default)]
+    pub hops: Option<u32>,
+    /// When `true`, also include `?inst a <seed>` triples. Default `false`.
+    #[serde(default)]
+    pub include_abox: Option<bool>,
+}
+
+/// Input for `onto_owl_shacl_coevolve_check` (#33, K-CAP 2025) — validate
+/// SHACL shapes against the OWL closure of the loaded graph, not just the
+/// raw ABox.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoOwlShaclCoevolveInput {
+    /// SHACL shapes as Turtle.
+    pub shapes_ttl: String,
+    /// Reasoner profile. Default `"owl-rl"`.
+    #[serde(default)]
+    pub profile: Option<String>,
+}
+
 /// Input for `graph_projection_lossy_check` (#35) — audits whether a projected
 /// Turtle slice has dropped predicates/objects vs the full source neighbourhood
 /// of the seed IRIs.
@@ -608,6 +752,54 @@ pub struct GraphProjectionLossyCheckInput {
     pub source_iris: Vec<String>,
     /// The projected Turtle slice that's being passed to a downstream consumer.
     pub projected_ttl: String,
+}
+
+// ─── Full BC+ semantics (#43 follow-on) ─────────────────────────────────────
+
+/// Input for `onto_action_apply_concurrent` — fire a tick of concurrent
+/// action instances. The whole tick is atomic: if any pair of steps
+/// conflicts (one adds a triple another removes) OR any registered invariant
+/// fails post-tick, nothing is applied.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoActionApplyConcurrentInput {
+    pub steps: Vec<ConcurrentStepInput>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct ConcurrentStepInput {
+    pub action_name: String,
+    #[serde(default)]
+    pub bindings: std::collections::BTreeMap<String, String>,
+}
+
+/// Input for `onto_invariant_register` — persist a SPARQL ASK invariant
+/// (BC+ static causal law) that the graph must always satisfy.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoInvariantRegisterInput {
+    pub name: String,
+    /// SPARQL ASK query (or just the body inside `{ ... }`). Must return
+    /// `true` for the law to hold.
+    pub ask_query: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Input for `onto_invariant_remove`.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoInvariantRemoveInput {
+    pub name: String,
+}
+
+/// Input for `onto_default_register` — persist a BC+ default-value law.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoDefaultRegisterInput {
+    pub name: String,
+    /// SPARQL ASK that activates the default when it returns `true`.
+    pub condition_ask: String,
+    /// Triples to assert when the condition fires. Each entry is `[s, p, o]`.
+    pub defaults: Vec<Vec<String>>,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 // ─── Dynamics layer (#43) — action schemas, applicability, apply ────────────
