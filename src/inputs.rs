@@ -543,6 +543,61 @@ pub struct AlignOntologiesInput {
     pub target_path: String,
 }
 
+/// Input for the CIVeX-style action certification tool (`onto_certify_action`).
+/// Mirrors the paper's action frame structure plus the policy thresholds needed
+/// for the triage step. See `src/civex.rs` for the full semantic.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoCertifyActionInput {
+    /// Name of the state-changing onto_* tool whose execution this gates.
+    pub tool: String,
+    /// The IRIs being targeted by the proposed change.
+    pub target_iris: Vec<String>,
+    /// The proposed change as Turtle.
+    pub proposed_delta_ttl: String,
+    /// Utility metric name. One of "dependent_query_pass_rate" (default — caller
+    /// supplies `dependent_queries`), "triple_count_delta", "class_count_delta",
+    /// "property_count_delta".
+    #[serde(default = "default_utility_metric")]
+    pub utility_metric: String,
+    /// SPARQL queries that should remain answerable post-change. Used when
+    /// `utility_metric == "dependent_query_pass_rate"`.
+    #[serde(default)]
+    pub dependent_queries: Vec<String>,
+    /// Cost budget (triples-affected). Action is REJECTED if cost > this.
+    pub cost_threshold: u64,
+    /// Utility threshold for EXECUTE. LCB must clear this.
+    pub utility_threshold: f64,
+    /// Risk threshold. Hard reject if cost exceeds this (even within budget).
+    pub risk_threshold: u64,
+    /// Whether the action is reversible.
+    pub reversible: bool,
+    /// Authorise the EXPERIMENT verdict (caller commits to running a sandbox replay).
+    #[serde(default)]
+    pub allow_experiment: bool,
+    /// One-sided confidence level α for the LCB. Default 0.05.
+    #[serde(default = "default_alpha_pub")]
+    pub alpha: f64,
+}
+
+fn default_utility_metric() -> String {
+    "dependent_query_pass_rate".to_string()
+}
+
+fn default_alpha_pub() -> f64 {
+    0.05
+}
+
+/// Input for `graph_projection_lossy_check` (#35) — audits whether a projected
+/// Turtle slice has dropped predicates/objects vs the full source neighbourhood
+/// of the seed IRIs.
+#[derive(Deserialize, JsonSchema)]
+pub struct GraphProjectionLossyCheckInput {
+    /// Seed IRIs whose neighbourhoods should be preserved by the projection.
+    pub source_iris: Vec<String>,
+    /// The projected Turtle slice that's being passed to a downstream consumer.
+    pub projected_ttl: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

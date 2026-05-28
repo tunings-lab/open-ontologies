@@ -4,7 +4,10 @@ pub mod error;
 pub mod align;
 pub mod config;
 pub mod clinical;
+pub mod civex;
 pub mod drift;
+pub mod projection_check;
+// (re-exports keep the alphabetical ordering of the surrounding modules manageable)
 pub mod enforce;
 pub mod kgcl;
 pub mod feedback;

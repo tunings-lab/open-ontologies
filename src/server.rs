@@ -929,6 +929,37 @@ impl OpenOntologiesServer {
             .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e))
     }
 
+    #[tool(name = "graph_projection_lossy_check", description = "Audit a projected Turtle slice against the loaded ontology's full neighbourhood of the seed IRIs. Reports dropped predicates, dropped object IRIs, per-seed coverage ratio, and aggregate coverage. Pair with onto_segment_retrieve when the slice is being passed to a downstream LLM — knowing what was left behind lets the caller decide whether the slice is sufficient. Per IJCAI 2025 'How to Mitigate Information Loss in KGs for GraphRAG'.")]
+    async fn graph_projection_lossy_check(&self, Parameters(input): Parameters<GraphProjectionLossyCheckInput>) -> String {
+        match crate::projection_check::check_projection_loss(&self.graph, &input.source_iris, &input.projected_ttl) {
+            Ok(report) => serde_json::to_string(&report)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_certify_action", description = "CIVeX-style causal certificate for a proposed state-changing ontology action. Returns a verdict (EXECUTE / REJECT / EXPERIMENT / ABSTAIN) plus an auditable certificate documenting the assumptions, structural-dependency identification proof, utility point estimate + one-sided lower confidence bound, provenance hash, and risk bound. Use as a pre-flight gate for onto_apply / onto_save / onto_push / onto_ingest. Scaffold port of arXiv:2605.09168 — structural-dependency proxy in place of full do-calculus identifiability; documented honestly.")]
+    async fn onto_certify_action(&self, Parameters(input): Parameters<OntoCertifyActionInput>) -> String {
+        let frame = crate::civex::ActionFrame {
+            tool: input.tool,
+            target_iris: input.target_iris,
+            proposed_delta_ttl: input.proposed_delta_ttl,
+            utility_metric: input.utility_metric,
+            dependent_queries: input.dependent_queries,
+            cost_threshold: input.cost_threshold,
+            utility_threshold: input.utility_threshold,
+            risk_threshold: input.risk_threshold,
+            reversible: input.reversible,
+            allow_experiment: input.allow_experiment,
+            alpha: input.alpha,
+        };
+        match crate::civex::certify_action(&self.db, &self.graph, &frame) {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
     #[tool(name = "onto_reason", description = "Run inference over the loaded ontology. Profiles: 'rdfs' (subclass, domain/range), 'owl-rl' (+ transitive/symmetric/inverse, sameAs, equivalentClass), 'owl-rl-ext' (+ someValuesFrom, allValuesFrom, hasValue, intersectionOf, unionOf), 'owl-dl' (Full OWL2-DL SHOIQ tableaux: satisfiability, classification, qualified number restrictions with node merging, inverse/symmetric roles, functional properties, parallel agent-based classification, explanation traces, ABox reasoning). Materializes inferred triples.")]
     async fn onto_reason(&self, Parameters(input): Parameters<OntoReasonInput>) -> String {
         use crate::reason::Reasoner;
