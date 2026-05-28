@@ -1,6 +1,7 @@
 //! In-memory vector store with dual-space search (cosine + Poincaré)
 //! and SQLite persistence.
 
+use crate::hnsw_index::CosineIndex;
 use crate::poincare::{cosine_similarity, l2_normalize, poincare_distance};
 use crate::state::StateDb;
 use std::collections::HashMap;
@@ -11,10 +12,16 @@ struct VecEntry {
     struct_vec: Vec<f32>,
 }
 
-/// Brute-force dual-space vector store.
+/// Brute-force dual-space vector store with an opt-in HNSW cosine index.
 pub struct VecStore {
     db: StateDb,
     entries: HashMap<String, VecEntry>,
+    /// Lazily-built HNSW index over `text_vec`s for accelerated cosine
+    /// search. Invalidated on every mutation; rebuilt on first
+    /// `search_cosine_hnsw` after a mutation. The existing
+    /// `search_cosine` linear scan is unchanged and continues to work
+    /// without HNSW.
+    cosine_index: Option<CosineIndex>,
 }
 
 impl VecStore {
@@ -22,6 +29,7 @@ impl VecStore {
         Self {
             db,
             entries: HashMap::new(),
+            cosine_index: None,
         }
     }
 
@@ -30,10 +38,13 @@ impl VecStore {
             text_vec: l2_normalize(text_vec),
             struct_vec: struct_vec.to_vec(),
         });
+        // Invalidate HNSW index — instant-distance is immutable once built.
+        self.cosine_index = None;
     }
 
     pub fn remove(&mut self, iri: &str) {
         self.entries.remove(iri);
+        self.cosine_index = None;
     }
 
     pub fn search_cosine(&self, query: &[f32], top_k: usize) -> Vec<(String, f32)> {
@@ -44,6 +55,44 @@ impl VecStore {
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         scores.truncate(top_k);
         scores
+    }
+
+    /// HNSW-accelerated cosine search. Approximate top-k via the HNSW index;
+    /// builds the index lazily on first call (and after any mutation).
+    ///
+    /// Same query/output semantics as [`Self::search_cosine`] (results sorted
+    /// by cosine similarity descending, top_k truncation, same scale), but
+    /// sub-linear query time once the index is warm. The trade-off vs the
+    /// exact brute-force scan: approximate top-k under default HNSW params,
+    /// rebuild cost on every mutation.
+    ///
+    /// Use this when:
+    /// - The store has more than a few hundred entries
+    /// - You expect many queries between mutations (`embed-once,
+    ///   search-many-times`)
+    /// - Approximate top-k is acceptable
+    ///
+    /// Otherwise stick with [`Self::search_cosine`].
+    pub fn search_cosine_hnsw(&mut self, query: &[f32], top_k: usize) -> Vec<(String, f32)> {
+        if self.entries.is_empty() {
+            return Vec::new();
+        }
+        if self.cosine_index.is_none() {
+            // Lazy build from current entries. Vectors are already L2-normalised
+            // (the upsert path guarantees that), so the HNSW index sees unit
+            // vectors and the cosine distance == 1 - dot product.
+            let points: Vec<(String, Vec<f32>)> = self
+                .entries
+                .iter()
+                .map(|(iri, e)| (iri.clone(), e.text_vec.clone()))
+                .collect();
+            self.cosine_index = Some(CosineIndex::build(points));
+        }
+        let query_norm = l2_normalize(query);
+        match self.cosine_index.as_mut() {
+            Some(idx) => idx.search(&query_norm, top_k),
+            None => Vec::new(),
+        }
     }
 
     pub fn search_poincare(&self, query: &[f32], top_k: usize) -> Vec<(String, f32)> {
@@ -118,6 +167,8 @@ impl VecStore {
                 struct_vec: bytes_to_f32_vec(&struct_bytes),
             });
         }
+        // Invalidate any previously-built HNSW index.
+        self.cosine_index = None;
         Ok(())
     }
 

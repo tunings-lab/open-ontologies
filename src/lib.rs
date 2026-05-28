@@ -35,6 +35,8 @@ pub mod poincare;
 #[cfg(feature = "embeddings")]
 pub mod vecstore;
 #[cfg(feature = "embeddings")]
+pub mod hnsw_index;
+#[cfg(feature = "embeddings")]
 pub mod embed;
 #[cfg(feature = "embeddings")]
 pub mod embed_remote;
