@@ -1578,6 +1578,8 @@ impl OpenOntologiesServer {
         let top_k = input.top_k.unwrap_or(10);
         let mode = input.mode.as_deref().unwrap_or("product");
         let alpha = input.alpha.unwrap_or(0.5);
+        let use_hnsw = input.use_hnsw.unwrap_or(false);
+        let ef_search_override = input.ef_search;
 
         let embedder = match &self.text_embedder {
             Some(e) => e,
@@ -1589,15 +1591,30 @@ impl OpenOntologiesServer {
             Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
         };
 
-        let vecstore = self.vecstore.lock().unwrap();
+        let mut vecstore = self.vecstore.lock().unwrap();
         if vecstore.is_empty() {
             return r#"{"error":"No embeddings loaded. Run onto_embed first."}"#.to_string();
         }
 
+        // If the caller provided an explicit ef_search, rebuild the cosine
+        // index with that value before the search. instant-distance bakes
+        // ef_search at build time, so per-query tuning means rebuild.
+        if use_hnsw && ef_search_override.is_some() {
+            let params = crate::hnsw_index::BuildParams {
+                ef_construction: None,
+                ef_search: ef_search_override,
+            };
+            vecstore.rebuild_cosine_index(params);
+        }
+
         let results: Vec<serde_json::Value> = match mode {
             "text" => {
-                vecstore.search_cosine(&query_vec, top_k)
-                    .into_iter()
+                let hits = if use_hnsw {
+                    vecstore.search_cosine_hnsw(&query_vec, top_k)
+                } else {
+                    vecstore.search_cosine(&query_vec, top_k)
+                };
+                hits.into_iter()
                     .map(|(iri, score)| serde_json::json!({"iri": iri, "score": (score * 1000.0).round() / 1000.0}))
                     .collect()
             }

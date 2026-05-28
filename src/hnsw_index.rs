@@ -41,6 +41,7 @@
 //! - Wiring into `onto_align`'s embedding-similarity signal (currently uses
 //!   `VecStore::get_text_vec` + direct cosine — still works, no regression)
 
+use crate::poincare::poincare_distance;
 use instant_distance::{Builder, HnswMap, Point, Search};
 use serde::{Deserialize, Serialize};
 
@@ -55,9 +56,9 @@ pub struct BuildParams {
     pub ef_search: Option<usize>,
 }
 
-/// A point in the HNSW index. Wraps an L2-normalised vector and implements the
-/// `instant-distance::Point` trait using `1.0 - dot_product` as the distance
-/// (cosine distance for L2-normalised vectors).
+/// A point in the cosine HNSW index. Wraps an L2-normalised vector and
+/// implements the `instant-distance::Point` trait using `1.0 - dot_product`
+/// as the distance (cosine distance for L2-normalised vectors).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CosinePoint(pub Vec<f32>);
 
@@ -73,6 +74,21 @@ impl Point for CosinePoint {
             .map(|(a, b)| a * b)
             .sum();
         1.0 - dot
+    }
+}
+
+/// A point in the Poincaré HNSW index. Wraps a vector in the Poincaré ball
+/// (||v|| < 1) and implements the `instant-distance::Point` trait using the
+/// hyperbolic Poincaré distance. The distance is symmetric and satisfies the
+/// triangle inequality, so HNSW works correctly over it; the resulting index
+/// accelerates queries against the structural-embedding space the same way
+/// `CosinePoint` accelerates queries against the text-embedding space.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PoincarePoint(pub Vec<f32>);
+
+impl Point for PoincarePoint {
+    fn distance(&self, other: &Self) -> f32 {
+        poincare_distance(&self.0, &other.0)
     }
 }
 
@@ -155,6 +171,79 @@ impl CosineIndex {
             .search(&q, &mut self.search)
             .take(top_k)
             .map(|item| (item.value.clone(), 1.0 - item.distance))
+            .collect()
+    }
+}
+
+/// HNSW-backed Poincaré index over (IRI -> structural embedding in the
+/// Poincaré ball). Parallel to [`CosineIndex`] but for the hyperbolic
+/// structural-embedding space rather than the Euclidean text-embedding space.
+/// Query results are returned as `(iri, distance)` pairs sorted by distance
+/// ascending — matching the convention of the brute-force `search_poincare`.
+pub struct PoincareIndex {
+    inner: HnswMap<PoincarePoint, String>,
+    search: Search,
+}
+
+impl PoincareIndex {
+    /// Build a Poincaré HNSW index from an iterable of `(iri, vector)` pairs.
+    /// The vectors must already lie inside the Poincaré ball (||v|| < 1) — the
+    /// VecStore's structural-embedding trainer guarantees this.
+    pub fn build<I, S>(entries: I) -> Self
+    where
+        I: IntoIterator<Item = (S, Vec<f32>)>,
+        S: Into<String>,
+    {
+        Self::build_with_params(entries, BuildParams::default())
+    }
+
+    /// Build with explicit HNSW parameters. See [`CosineIndex::build_with_params`].
+    pub fn build_with_params<I, S>(entries: I, params: BuildParams) -> Self
+    where
+        I: IntoIterator<Item = (S, Vec<f32>)>,
+        S: Into<String>,
+    {
+        let mut points = Vec::new();
+        let mut iris = Vec::new();
+        for (iri, vec) in entries {
+            points.push(PoincarePoint(vec));
+            iris.push(iri.into());
+        }
+        let mut builder = Builder::default();
+        if let Some(efc) = params.ef_construction {
+            builder = builder.ef_construction(efc);
+        }
+        if let Some(efs) = params.ef_search {
+            builder = builder.ef_search(efs);
+        }
+        let inner = builder.build(points, iris);
+        Self {
+            inner,
+            search: Search::default(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(bincode::serialize(&self.inner)?)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        let inner: HnswMap<PoincarePoint, String> = bincode::deserialize(bytes)?;
+        Ok(Self {
+            inner,
+            search: Search::default(),
+        })
+    }
+
+    /// Approximate top-k Poincaré-distance search. Returns `(iri, distance)`
+    /// pairs sorted by distance ascending — same convention as the brute-force
+    /// `VecStore::search_poincare`.
+    pub fn search(&mut self, query: &[f32], top_k: usize) -> Vec<(String, f32)> {
+        let q = PoincarePoint(query.to_vec());
+        self.inner
+            .search(&q, &mut self.search)
+            .take(top_k)
+            .map(|item| (item.value.clone(), item.distance))
             .collect()
     }
 }

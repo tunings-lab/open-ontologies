@@ -476,6 +476,17 @@ pub struct OntoSearchInput {
     pub mode: Option<String>,
     /// Weight for text vs structure in product mode (0.0-1.0). Default: 0.5
     pub alpha: Option<f32>,
+    /// When true (text mode only), route the search through the HNSW cosine
+    /// index instead of the brute-force linear scan. Recommended for ontologies
+    /// with more than a few hundred classes. Default: false.
+    pub use_hnsw: Option<bool>,
+    /// Optional HNSW `ef_search` override. When provided AND `use_hnsw` is true,
+    /// the index is rebuilt with this `ef_search` before searching.
+    /// **Caveat:** `instant-distance` bakes `ef_search` into the HNSW index at
+    /// build time and does not support per-query overrides, so changing this
+    /// value triggers a rebuild. Prefer setting `ef_search` once via
+    /// `onto_hnsw_build` if you query frequently with the same value.
+    pub ef_search: Option<usize>,
 }
 
 #[derive(Deserialize, JsonSchema)]
