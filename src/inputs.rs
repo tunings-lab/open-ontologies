@@ -577,6 +577,11 @@ pub struct OntoCertifyActionInput {
     /// One-sided confidence level α for the LCB. Default 0.05.
     #[serde(default = "default_alpha_pub")]
     pub alpha: f64,
+    /// Optional name of a registered Dynamics action schema (#43) — echoed
+    /// into the certificate's assumptions so the audit trail is explicit
+    /// about which action was certified.
+    #[serde(default)]
+    pub action_schema_name: Option<String>,
 }
 
 fn default_utility_metric() -> String {
@@ -596,6 +601,121 @@ pub struct GraphProjectionLossyCheckInput {
     pub source_iris: Vec<String>,
     /// The projected Turtle slice that's being passed to a downstream consumer.
     pub projected_ttl: String,
+}
+
+// ─── Dynamics layer (#43) — action schemas, applicability, apply ────────────
+
+/// Input for `onto_action_register` — persist an action schema by name.
+/// Schema is supplied as inline JSON matching `dynamics::ActionSchema`.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoActionRegisterInput {
+    /// Inline JSON for the action schema. Must deserialize into the structure:
+    /// `{ "name": "...", "parameters": [...], "preconditions": [...],
+    ///    "effects": [{"kind": "add_triple"|"remove_triple"|"add_class", ...}],
+    ///    "reversible": true|false, "description": "..." }`.
+    pub schema_json: String,
+}
+
+/// Input for `onto_action_applicable` — evaluate a registered action's
+/// preconditions against the loaded graph under the given parameter bindings.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoActionApplicableInput {
+    /// Name of a previously registered action schema.
+    pub action_name: String,
+    /// Bindings: `{ "param_name": "iri-or-literal" }`. Substituted into
+    /// precondition SPARQL via `{param_name}` placeholders.
+    pub bindings: std::collections::BTreeMap<String, String>,
+}
+
+/// Input for `onto_action_apply` — execute a registered action's effects,
+/// returning the KGCL patch and an IES4-style event IRI.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoActionApplyInput {
+    /// Name of a previously registered action schema.
+    pub action_name: String,
+    /// Parameter bindings (same shape as in `onto_action_applicable`).
+    pub bindings: std::collections::BTreeMap<String, String>,
+    /// If `true` (default), re-check preconditions before applying and abort
+    /// if they don't hold. Set `false` only if you have already certified the
+    /// action via `onto_certify_action`.
+    #[serde(default = "default_true")]
+    pub check_preconditions: bool,
+    /// Ramification (#47): if `Some(profile)`, run the reasoner after `apply`
+    /// to materialise downstream entailments. Accepted profiles: `"rdfs"`,
+    /// `"owl-rl"`, `"owl-rl-ext"`, `"owl-dl"`. `None` (default) skips
+    /// ramification — the literal effects land and that's it.
+    #[serde(default)]
+    pub ramify: Option<String>,
+    /// Non-deterministic outcomes (#49): when the registered schema has a
+    /// non-empty `outcomes` list, this seed makes the sample reproducible.
+    /// `None` (default) uses `SystemTime::now()` for non-reproducible
+    /// sampling. Ignored for deterministic schemas (empty `outcomes`).
+    #[serde(default)]
+    pub seed: Option<u64>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Input for `onto_plan_classical` (#50, Planner #45 follow-up) — invoke
+/// Fast Downward as a subprocess on a precompiled PDDL domain + problem and
+/// return the parsed sas_plan.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoPlanClassicalInput {
+    /// PDDL domain text (as produced by `onto_plan_compile_pddl`).
+    pub domain: String,
+    /// PDDL problem text (as produced by `onto_plan_compile_pddl`).
+    pub problem: String,
+    /// Optional path to the Fast Downward binary (or wrapper script).
+    /// Resolution order: this field > `FAST_DOWNWARD_BIN` env var >
+    /// `fast-downward.py` on PATH.
+    #[serde(default)]
+    pub fast_downward_bin: Option<String>,
+    /// Fast Downward search-engine string (e.g. `"lama-first"`,
+    /// `"astar(lmcut())"`). Default `"lama-first"`.
+    #[serde(default)]
+    pub search: Option<String>,
+}
+
+/// Input for `onto_plan_validate` (#45 — LLM-Modulo validator) — check that
+/// a candidate plan (typically produced by a client-side solver) actually
+/// executes step-by-step against the loaded graph in a sandbox, without
+/// mutating the real store.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoPlanValidateInput {
+    /// Candidate plan: an ordered list of `{action_name, bindings}` steps.
+    /// `bindings` is a `{param_name: iri-or-literal}` map.
+    pub steps: Vec<PlanStepInput>,
+    /// Optional goal triples. Each is `[s, p, o]` in N-Triple-position form
+    /// (e.g. `["<http://ex.org/Cat>", "<http://www.w3.org/2000/01/rdf-schema#subClassOf>", "<http://ex.org/Animal>"]`).
+    /// Reported in `unsatisfied_goals` if any goal does not hold post-plan.
+    #[serde(default)]
+    pub goal_facts: Vec<Vec<String>>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PlanStepInput {
+    pub action_name: String,
+    #[serde(default)]
+    pub bindings: std::collections::BTreeMap<String, String>,
+}
+
+/// Input for `onto_plan_compile_pddl` (#45 — Planner v0.6 stub) — emit a PDDL
+/// domain from registered action schemas plus a problem instance from the
+/// current graph + goal triples.
+#[derive(Deserialize, JsonSchema)]
+pub struct OntoPlanCompilePddlInput {
+    /// Domain name to embed in `(define (domain ...))`. Default `"ontology"`.
+    #[serde(default)]
+    pub domain_name: Option<String>,
+    /// Subset of registered action schema names to include. Omit / empty for
+    /// "include every registered schema".
+    #[serde(default)]
+    pub action_names: Vec<String>,
+    /// Goal triples in Turtle that must hold in the post-state.
+    #[serde(default)]
+    pub goal_ttl: Option<String>,
 }
 
 #[cfg(test)]

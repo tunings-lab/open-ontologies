@@ -952,12 +952,201 @@ impl OpenOntologiesServer {
             reversible: input.reversible,
             allow_experiment: input.allow_experiment,
             alpha: input.alpha,
+            action_schema_name: input.action_schema_name,
         };
         match crate::civex::certify_action(&self.db, &self.graph, &frame) {
             Ok(result) => serde_json::to_string(&result)
                 .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),
         }
+    }
+
+    // ── Dynamics layer (#43) — action schemas, applicability, apply ────────
+
+    #[tool(name = "onto_action_register", description = "Persist a named action schema (Dynamics layer #43). Schema specifies typed parameters, SPARQL preconditions, and KGCL-shaped effects (add_triple/remove_triple/add_class). `{param}` placeholders are substituted at apply time. Schemas are looked up by `onto_action_applicable` and executed by `onto_action_apply`. Companion to the Causal layer (`onto_certify_action`) and the Planner (`onto_plan_compile_pddl`). BC+ deterministic-single-effect subset; ramification + non-determinism deferred to v0.4.x.")]
+    async fn onto_action_register(&self, Parameters(input): Parameters<OntoActionRegisterInput>) -> String {
+        let schema: crate::dynamics::ActionSchema = match serde_json::from_str(&input.schema_json) {
+            Ok(s) => s,
+            Err(e) => return format!(r#"{{"error":"invalid schema_json: {}"}}"#, e),
+        };
+        let name = schema.name.clone();
+        match crate::dynamics::register(&self.db, &schema) {
+            Ok(()) => format!(r#"{{"ok":true,"registered":"{}"}}"#, name),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_action_applicable", description = "Evaluate a registered action's SPARQL preconditions against the loaded graph under the given parameter bindings. Returns {applicable: bool, action_name, bindings, preconditions_evaluated}. Use as a pre-flight check before `onto_action_apply` or as the applicability oracle for the Planner.")]
+    async fn onto_action_applicable(&self, Parameters(input): Parameters<OntoActionApplicableInput>) -> String {
+        let schema = match crate::dynamics::lookup(&self.db, &input.action_name) {
+            Ok(Some(s)) => s,
+            Ok(None) => return format!(r#"{{"error":"unknown action: {}"}}"#, input.action_name),
+            Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
+        };
+        let bindings: Vec<(String, String)> = input.bindings.into_iter().collect();
+        let applicable = schema.applicable(&self.graph, &bindings);
+        let body = serde_json::json!({
+            "applicable": applicable,
+            "action_name": schema.name,
+            "bindings": bindings,
+            "preconditions_evaluated": schema.preconditions.len(),
+        });
+        body.to_string()
+    }
+
+    #[tool(name = "onto_action_apply", description = "Apply a registered action's effects with the given parameter bindings. Returns the KGCL patch (CNL form), the IES4-style event IRI for the audit trail, and triples added/removed. Re-checks preconditions by default; set `check_preconditions=false` only after a successful `onto_certify_action` certificate. Optional ramification (#47): pass `ramify=\"rdfs\"|\"owl-rl\"|\"owl-rl-ext\"|\"owl-dl\"` to materialise downstream entailments after the literal effects land; the result includes `derived_triples_added` so callers can see what the reasoner produced. Pair with `onto_certify_action` for gated changes.")]
+    async fn onto_action_apply(&self, Parameters(input): Parameters<OntoActionApplyInput>) -> String {
+        let schema = match crate::dynamics::lookup(&self.db, &input.action_name) {
+            Ok(Some(s)) => s,
+            Ok(None) => return format!(r#"{{"error":"unknown action: {}"}}"#, input.action_name),
+            Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
+        };
+        let bindings: Vec<(String, String)> = input.bindings.into_iter().collect();
+        if input.check_preconditions && !schema.applicable(&self.graph, &bindings) {
+            return r#"{"error":"preconditions not satisfied"}"#.to_string();
+        }
+        let outcome = match (input.ramify.as_deref(), input.seed) {
+            (Some(profile), _) if !profile.is_empty() => {
+                schema.apply_with_ramification(&self.graph, &self.db, &bindings, profile)
+            }
+            (_, Some(seed)) => {
+                schema.apply_with_seed(&self.graph, &self.db, &bindings, seed)
+            }
+            _ => schema.apply(&self.graph, &self.db, &bindings),
+        };
+        match outcome {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_action_list", description = "List the names of all action schemas registered in this server's Dynamics store. Useful for the Planner / Claude to know what's available before composing a plan.")]
+    async fn onto_action_list(&self) -> String {
+        match crate::dynamics::list_names(&self.db) {
+            Ok(names) => serde_json::to_string(&names)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_plan_classical", description = "Invoke Fast Downward as a subprocess on a precompiled PDDL domain + problem (#50). Returns the raw sas_plan content plus a parsed `operators` list (operator name + positional PDDL args). The orchestrator maps args back to original IRIs using the schema parameter names (still client-side per LLM-Modulo). If Fast Downward is not on PATH and `fast_downward_bin` is not set, returns a clean `binary_unavailable` error rather than falling back to a silent stub. Pair: `onto_plan_compile_pddl` → `onto_plan_classical` → IRI-bind operators client-side → `onto_plan_validate`.")]
+    async fn onto_plan_classical(&self, Parameters(input): Parameters<OntoPlanClassicalInput>) -> String {
+        match crate::plan_classical::run_fast_downward(
+            &input.domain,
+            &input.problem,
+            input.fast_downward_bin.as_deref(),
+            input.search.as_deref(),
+        ) {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_plan_validate", description = "Validate a candidate plan (sequence of registered-action steps) against the loaded graph WITHOUT mutating the real store. Per LLM-Modulo (Kambhampati arXiv 2402.01817), the server validates plans the client-side solver produced — it does not solve. For each step, the validator re-evaluates the schema's preconditions against the cumulative sandbox state and applies effects to a forked copy; the first failing step short-circuits with a diagnostic. Optional `goal_facts` are checked post-plan and reported in `unsatisfied_goals` (without invalidating the plan itself). Pair with `onto_plan_compile_pddl` (server compiles → external solver searches → server validates).")]
+    async fn onto_plan_validate(&self, Parameters(input): Parameters<OntoPlanValidateInput>) -> String {
+        let steps: Vec<crate::plan_validate::PlanStep> = input.steps.into_iter()
+            .map(|s| crate::plan_validate::PlanStep {
+                action_name: s.action_name,
+                bindings: s.bindings,
+            })
+            .collect();
+        let goal_facts: Vec<(String, String, String)> = input.goal_facts.into_iter()
+            .filter_map(|t| if t.len() == 3 { Some((t[0].clone(), t[1].clone(), t[2].clone())) } else { None })
+            .collect();
+        match crate::plan_validate::validate_plan(&self.db, &self.graph, &steps, &goal_facts) {
+            Ok(result) => serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"error":"serialization: {}"}}"#, e)),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    }
+
+    #[tool(name = "onto_plan_compile_pddl", description = "Compile a PDDL domain from registered Dynamics action schemas (#43) plus a problem instance from the loaded graph and a goal Turtle slice (#45 Planner stub). Returns {domain, problem, translation_notes}. The actual planner (Fast Downward) is wrapped client-side per the LLM-Modulo convention — this primitive only emits the PDDL. Lossy in the v0.4 stub: only ASK-shape SPARQL preconditions translate cleanly; SELECT-shaped preconditions are preserved as notes.")]
+    async fn onto_plan_compile_pddl(&self, Parameters(input): Parameters<OntoPlanCompilePddlInput>) -> String {
+        // Gather schemas — either explicitly requested or every registered one.
+        let names = if input.action_names.is_empty() {
+            match crate::dynamics::list_names(&self.db) {
+                Ok(n) => n,
+                Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
+            }
+        } else {
+            input.action_names
+        };
+        let mut schemas: Vec<crate::dynamics::ActionSchema> = Vec::with_capacity(names.len());
+        for n in &names {
+            match crate::dynamics::lookup(&self.db, n) {
+                Ok(Some(s)) => schemas.push(s),
+                Ok(None) => return format!(r#"{{"error":"unknown action: {}"}}"#, n),
+                Err(e) => return format!(r#"{{"error":"{}"}}"#, e),
+            }
+        }
+
+        let domain_name = input.domain_name.unwrap_or_else(|| "ontology".to_string());
+        let compiled = crate::plan_pddl::compile_domain(&domain_name, &schemas);
+
+        // Init facts: enumerate every triple in the loaded graph as a (s, p, o).
+        let init_facts: Vec<(String, String, String)> = match self
+            .graph
+            .sparql_select("SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10000")
+        {
+            Ok(s) => {
+                let v: serde_json::Value = serde_json::from_str(&s).unwrap_or(serde_json::Value::Null);
+                v["results"].as_array().cloned().unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|row| {
+                        let s = row["s"].as_str()?.to_string();
+                        let p = row["p"].as_str()?.to_string();
+                        let o = row["o"].as_str()?.to_string();
+                        Some((s, p, o))
+                    })
+                    .collect()
+            }
+            Err(_) => Vec::new(),
+        };
+
+        // Goal facts: parse goal_ttl by loading into a scratch graph.
+        let goal_facts: Vec<(String, String, String)> = match input.goal_ttl.as_deref() {
+            Some(ttl) if !ttl.trim().is_empty() => {
+                let temp = crate::graph::GraphStore::new();
+                if temp.load_turtle(ttl, None).is_err() {
+                    return r#"{"error":"goal_ttl failed to parse"}"#.to_string();
+                }
+                match temp.sparql_select("SELECT ?s ?p ?o WHERE { ?s ?p ?o }") {
+                    Ok(s) => {
+                        let v: serde_json::Value = serde_json::from_str(&s).unwrap_or(serde_json::Value::Null);
+                        v["results"].as_array().cloned().unwrap_or_default()
+                            .into_iter()
+                            .filter_map(|row| {
+                                let s = row["s"].as_str()?.to_string();
+                                let p = row["p"].as_str()?.to_string();
+                                let o = row["o"].as_str()?.to_string();
+                                Some((s, p, o))
+                            })
+                            .collect()
+                    }
+                    Err(_) => Vec::new(),
+                }
+            }
+            _ => Vec::new(),
+        };
+
+        let problem = crate::plan_pddl::compile_problem(
+            "ontology_problem",
+            &domain_name,
+            &init_facts,
+            &goal_facts,
+        );
+
+        let body = serde_json::json!({
+            "domain": compiled.domain,
+            "problem": problem,
+            "translation_notes": compiled.translation_notes,
+            "actions_included": names,
+            "init_facts_count": init_facts.len(),
+            "goal_facts_count": goal_facts.len(),
+        });
+        body.to_string()
     }
 
     #[tool(name = "onto_reason", description = "Run inference over the loaded ontology. Profiles: 'rdfs' (subclass, domain/range), 'owl-rl' (+ transitive/symmetric/inverse, sameAs, equivalentClass), 'owl-rl-ext' (+ someValuesFrom, allValuesFrom, hasValue, intersectionOf, unionOf), 'owl-dl' (Full OWL2-DL SHOIQ tableaux: satisfiability, classification, qualified number restrictions with node merging, inverse/symmetric roles, functional properties, parallel agent-based classification, explanation traces, ABox reasoning). Materializes inferred triples.")]

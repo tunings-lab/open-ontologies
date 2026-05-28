@@ -5,7 +5,10 @@ pub mod align;
 pub mod config;
 pub mod clinical;
 pub mod civex;
+#[cfg(feature = "causal-pywhy")]
+pub mod civex_pywhy;
 pub mod drift;
+pub mod dynamics;
 pub mod projection_check;
 // (re-exports keep the alphabetical ordering of the surrounding modules manageable)
 pub mod enforce;
@@ -17,6 +20,9 @@ pub mod inputs;
 pub mod lineage;
 pub mod monitor;
 pub mod plan;
+pub mod plan_classical;
+pub mod plan_pddl;
+pub mod plan_validate;
 pub mod webhook;
 pub mod mapping;
 pub mod marketplace;
