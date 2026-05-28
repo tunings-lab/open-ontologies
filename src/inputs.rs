@@ -448,6 +448,25 @@ pub struct OntoEmbedInput {
 }
 
 #[derive(Deserialize, JsonSchema)]
+pub struct OntoHnswBuildInput {
+    /// HNSW `ef_construction` — size of the dynamic candidate list during
+    /// graph construction. Higher values yield better recall at the cost of
+    /// slower build. instant-distance's default (100) is a sensible starting
+    /// point; tune upward (e.g. 200-400) for high-recall workloads.
+    pub ef_construction: Option<usize>,
+    /// HNSW `ef_search` — size of the dynamic candidate list during query.
+    /// Higher values yield better recall per query at the cost of slower
+    /// search. instant-distance's default works for most ontologies; raise
+    /// (e.g. 100-200) when search recall matters more than latency.
+    pub ef_search: Option<usize>,
+    /// When true (default), persist the built index to SQLite so subsequent
+    /// process restarts can skip the rebuild via `VecStore::load_cosine_index`.
+    /// Set false for ephemeral one-shot builds.
+    #[serde(default)]
+    pub persist: Option<bool>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 pub struct OntoSearchInput {
     /// Natural language query
     pub query: String,

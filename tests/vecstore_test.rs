@@ -173,3 +173,96 @@ fn search_cosine_hnsw_on_empty_store_returns_empty() {
     let results = store.search_cosine_hnsw(&[1.0, 0.0, 0.0], 5);
     assert!(results.is_empty());
 }
+
+#[test]
+fn hnsw_index_persists_across_process_restart() {
+    // Round-trip: upsert entries -> persist BOTH vectors and the built HNSW
+    // index -> reopen a fresh VecStore on the same DB -> load_from_db should
+    // restore both the entries and the cached index -> search_cosine_hnsw
+    // works immediately without rebuilding.
+    use tempfile::NamedTempFile;
+    let tmp = NamedTempFile::new().unwrap();
+    let path = tmp.path().to_path_buf();
+    std::mem::forget(tmp);
+
+    // Phase 1: populate, build, persist.
+    {
+        let db = StateDb::open(&path).unwrap();
+        let mut store = VecStore::new(db);
+        for (iri, v) in [
+            ("http://ex.org/Cat",    [1.0_f32, 0.05, 0.0]),
+            ("http://ex.org/Kitten", [0.98, 0.1, 0.0]),
+            ("http://ex.org/Dog",    [0.9, 0.3, 0.0]),
+            ("http://ex.org/Bird",   [0.4, 0.7, 0.0]),
+            ("http://ex.org/Car",    [0.0, 0.1, 1.0]),
+        ] {
+            store.upsert(iri, &v, &[0.0]);
+        }
+        // Warm the index, then persist both vectors and the index.
+        let _ = store.search_cosine_hnsw(&[1.0, 0.0, 0.0], 3);
+        store.persist().expect("persist vectors");
+        store.persist_cosine_index().expect("persist index");
+    }
+
+    // Phase 2: fresh store, load from same DB, query immediately.
+    let db = StateDb::open(&path).unwrap();
+    let mut store = VecStore::new(db);
+    store.load_from_db().expect("load_from_db");
+    assert_eq!(store.len(), 5, "all 5 vectors should reload");
+
+    let results = store.search_cosine_hnsw(&[1.0, 0.0, 0.0], 1);
+    assert_eq!(results.len(), 1);
+    assert!(
+        results[0].0.contains("Cat"),
+        "after persistence round-trip, expected Cat as top-1 nearest neighbour; got {:?}",
+        results
+    );
+}
+
+#[test]
+fn hnsw_index_cache_invalidated_when_entries_change() {
+    // If the SQLite cache holds a stale index (different entry fingerprint),
+    // load_cosine_index must NOT install it; the next search_cosine_hnsw
+    // rebuilds from the new entries.
+    use tempfile::NamedTempFile;
+    let tmp = NamedTempFile::new().unwrap();
+    let path = tmp.path().to_path_buf();
+    std::mem::forget(tmp);
+
+    // Persist an index built from one entry set.
+    {
+        let db = StateDb::open(&path).unwrap();
+        let mut store = VecStore::new(db);
+        store.upsert("http://ex.org/Cat", &[1.0, 0.0, 0.0], &[0.0]);
+        store.upsert("http://ex.org/Dog", &[0.9, 0.1, 0.0], &[0.0]);
+        let _ = store.search_cosine_hnsw(&[1.0, 0.0, 0.0], 1);
+        store.persist().expect("persist vectors");
+        store.persist_cosine_index().expect("persist index");
+    }
+
+    // Mutate the underlying embeddings table (simulate: a fresh embed run
+    // produced different vectors for the same IRIs) — but DON'T re-persist
+    // the index. The fingerprint should mismatch on the next load.
+    {
+        let db = StateDb::open(&path).unwrap();
+        let mut store = VecStore::new(db);
+        // Different vectors than the persisted set.
+        store.upsert("http://ex.org/Cat", &[0.0, 1.0, 0.0], &[0.0]);
+        store.upsert("http://ex.org/Dog", &[0.0, 0.9, 0.1], &[0.0]);
+        store.persist().expect("persist new vectors only — NOT the index");
+    }
+
+    // Load fresh. The cached index's fingerprint won't match the new vectors,
+    // so load_cosine_index should refuse it; search_cosine_hnsw must rebuild
+    // and return the NEW nearest-neighbour, not the stale one.
+    let db = StateDb::open(&path).unwrap();
+    let mut store = VecStore::new(db);
+    store.load_from_db().expect("load_from_db");
+    let results = store.search_cosine_hnsw(&[0.0, 1.0, 0.0], 1);
+    assert_eq!(results.len(), 1);
+    assert!(
+        results[0].0.contains("Cat"),
+        "after vectors mutated and stale-cache rejected, expected Cat (now aligned with [0,1,0]); got {:?}",
+        results
+    );
+}

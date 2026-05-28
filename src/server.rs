@@ -1537,6 +1537,38 @@ impl OpenOntologiesServer {
         } // cfg(feature = "embeddings")
     }
 
+    #[tool(name = "onto_hnsw_build", description = "Build (or rebuild) the HNSW cosine index over the loaded text embeddings with explicit `ef_construction` and `ef_search` parameters. Persists the index to SQLite by default so subsequent process restarts skip the rebuild. Use after onto_embed when you want to tune index quality vs. build/query time on larger ontologies. Default builder parameters are sensible for ontologies up to ~10k classes.")]
+    async fn onto_hnsw_build(&self, Parameters(input): Parameters<OntoHnswBuildInput>) -> String {
+        #[cfg(not(feature = "embeddings"))]
+        { let _ = input; return r#"{"error":"Compiled without embeddings feature. Rebuild with --features embeddings"}"#.to_string(); }
+        #[cfg(feature = "embeddings")]
+        {
+            let persist = input.persist.unwrap_or(true);
+            let params = crate::hnsw_index::BuildParams {
+                ef_construction: input.ef_construction,
+                ef_search: input.ef_search,
+            };
+            let mut vecstore = self.vecstore.lock().unwrap();
+            vecstore.rebuild_cosine_index(params);
+            let count = vecstore.len();
+            let persisted = if persist {
+                match vecstore.persist_cosine_index() {
+                    Ok(()) => true,
+                    Err(e) => return format!(r#"{{"error":"persist failed: {}"}}"#, e),
+                }
+            } else {
+                false
+            };
+            serde_json::json!({
+                "ok": true,
+                "entries_indexed": count,
+                "persisted": persisted,
+                "ef_construction": input.ef_construction,
+                "ef_search": input.ef_search,
+            }).to_string()
+        }
+    }
+
     #[tool(name = "onto_search", description = "Semantic search over the loaded ontology using natural language. Returns the most similar classes by text meaning, structural position, or both. Requires onto_embed to have been run first.")]
     async fn onto_search(&self, Parameters(input): Parameters<OntoSearchInput>) -> String {
         #[cfg(not(feature = "embeddings"))]

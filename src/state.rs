@@ -105,6 +105,19 @@ CREATE TABLE IF NOT EXISTS embeddings (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Cached HNSW cosine index over the embeddings.text_vec column. Single-row
+-- table keyed on `kind` (currently only the cosine variant) so future
+-- index variants (Poincare, product) can coexist. `entries_hash` is a
+-- fingerprint of the (iri, text_vec) set the index was built from; if it
+-- changes we know the cached index is stale and must be rebuilt.
+CREATE TABLE IF NOT EXISTS hnsw_index_cache (
+    kind TEXT PRIMARY KEY,
+    entries_hash BLOB NOT NULL,
+    entry_count INTEGER NOT NULL,
+    serialised BLOB NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Compile cache for loaded ontology files. One row per ontology `name`.
 -- See src/cache.rs for the validity policy.
 CREATE TABLE IF NOT EXISTS ontology_cache (

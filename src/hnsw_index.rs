@@ -42,11 +42,23 @@
 //!   `VecStore::get_text_vec` + direct cosine — still works, no regression)
 
 use instant_distance::{Builder, HnswMap, Point, Search};
+use serde::{Deserialize, Serialize};
+
+/// Tunable HNSW build parameters. `None` means "use instant-distance default".
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BuildParams {
+    /// Size of the dynamic candidate list during graph construction. Higher
+    /// values yield better recall at the cost of slower build time.
+    pub ef_construction: Option<usize>,
+    /// Size of the dynamic candidate list during query. Higher values yield
+    /// better recall at the cost of slower search.
+    pub ef_search: Option<usize>,
+}
 
 /// A point in the HNSW index. Wraps an L2-normalised vector and implements the
 /// `instant-distance::Point` trait using `1.0 - dot_product` as the distance
 /// (cosine distance for L2-normalised vectors).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CosinePoint(pub Vec<f32>);
 
 impl Point for CosinePoint {
@@ -83,17 +95,55 @@ impl CosineIndex {
         I: IntoIterator<Item = (S, Vec<f32>)>,
         S: Into<String>,
     {
+        Self::build_with_params(entries, BuildParams::default())
+    }
+
+    /// Build an HNSW index with explicit HNSW parameters.
+    ///
+    /// `ef_construction` controls the size of the dynamic candidate list during
+    /// graph construction (higher = better recall, slower build).
+    /// `ef_search` controls the candidate list during query (higher = better
+    /// recall, slower search). The instant-distance defaults work well for
+    /// ontologies up to ~10k classes; tune upward for higher-recall workloads.
+    pub fn build_with_params<I, S>(entries: I, params: BuildParams) -> Self
+    where
+        I: IntoIterator<Item = (S, Vec<f32>)>,
+        S: Into<String>,
+    {
         let mut points = Vec::new();
         let mut iris = Vec::new();
         for (iri, vec) in entries {
             points.push(CosinePoint(vec));
             iris.push(iri.into());
         }
-        let inner = Builder::default().build(points, iris);
+        let mut builder = Builder::default();
+        if let Some(efc) = params.ef_construction {
+            builder = builder.ef_construction(efc);
+        }
+        if let Some(efs) = params.ef_search {
+            builder = builder.ef_search(efs);
+        }
+        let inner = builder.build(points, iris);
         Self {
             inner,
             search: Search::default(),
         }
+    }
+
+    /// Serialise the index to a byte buffer for persistence in SQLite.
+    /// Round-trip via [`Self::from_bytes`] reconstructs an equivalent index
+    /// without rebuilding from raw vectors.
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(bincode::serialize(&self.inner)?)
+    }
+
+    /// Reconstruct an index from a byte buffer produced by [`Self::to_bytes`].
+    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        let inner: HnswMap<CosinePoint, String> = bincode::deserialize(bytes)?;
+        Ok(Self {
+            inner,
+            search: Search::default(),
+        })
     }
 
     /// Approximate top-k cosine search. Returns `(iri, similarity)` pairs

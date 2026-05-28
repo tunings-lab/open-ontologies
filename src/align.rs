@@ -394,11 +394,66 @@ impl AlignmentEngine {
         // Get learned weights (or defaults)
         let weights = self.get_learned_weights();
 
-        // Compute candidates: cartesian product of source × target classes
+        // HNSW prefilter (optional, transparent): when both source and target class
+        // IRIs have embeddings in the vecstore, use HNSW to compute a per-source
+        // shortlist of candidate target IRIs and skip pairs not in the shortlist.
+        // The default top-k is 50, which is well above the typical # of high-label-
+        // similarity matches per source class but tight enough to cut the Cartesian
+        // product cost on large ontologies. Gracefully degrades to full Cartesian
+        // when embeddings are missing.
+        #[cfg(feature = "embeddings")]
+        let hnsw_prefilter: Option<std::collections::HashMap<String, std::collections::HashSet<String>>> = {
+            const HNSW_TOP_K: usize = 50;
+            if let Some(ref vs_arc) = self.vecstore {
+                let target_iri_set: std::collections::HashSet<&str> =
+                    target_classes.iter().map(|c| c.iri.as_str()).collect();
+                let mut vs = vs_arc.lock().unwrap();
+                let mut by_source: std::collections::HashMap<String, std::collections::HashSet<String>> =
+                    std::collections::HashMap::new();
+                let mut any_used = false;
+                for sc in &source_classes {
+                    if let Some(src_vec) = vs.get_text_vec(&sc.iri).map(|v| v.to_vec()) {
+                        let shortlist = vs.search_cosine_hnsw(&src_vec, HNSW_TOP_K);
+                        if !shortlist.is_empty() {
+                            let filtered: std::collections::HashSet<String> = shortlist
+                                .into_iter()
+                                .filter(|(iri, _)| target_iri_set.contains(iri.as_str()))
+                                .map(|(iri, _)| iri)
+                                .collect();
+                            if !filtered.is_empty() {
+                                by_source.insert(sc.iri.clone(), filtered);
+                                any_used = true;
+                            }
+                        }
+                    }
+                }
+                if any_used { Some(by_source) } else { None }
+            } else {
+                None
+            }
+        };
+        #[cfg(not(feature = "embeddings"))]
+        let hnsw_prefilter: Option<std::collections::HashMap<String, std::collections::HashSet<String>>> = None;
+
+        // Compute candidates: cartesian product of source × target classes,
+        // optionally pruned to the HNSW shortlist when available.
         let mut candidates: Vec<serde_json::Value> = Vec::new();
 
         for sc in &source_classes {
+            // HNSW prefilter: if we computed a shortlist for this source, skip
+            // targets outside the shortlist. If the prefilter map exists but has
+            // no entry for THIS source (e.g. source had no embedding), fall back
+            // to scanning all targets — preserves correctness on partially-
+            // embedded inputs.
+            let shortlist_for_source: Option<&std::collections::HashSet<String>> =
+                hnsw_prefilter.as_ref().and_then(|m| m.get(&sc.iri));
+
             for tc in &target_classes {
+                if let Some(shortlist) = shortlist_for_source
+                    && !shortlist.contains(&tc.iri)
+                {
+                    continue;
+                }
                 // Skip self-matches (same IRI)
                 if sc.iri == tc.iri {
                     continue;

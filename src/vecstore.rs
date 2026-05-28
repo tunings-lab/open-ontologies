@@ -126,6 +126,107 @@ impl VecStore {
         scores
     }
 
+    /// Deterministic FNV-1a 64-bit fingerprint of the entry set. Stable across
+    /// processes; used to detect when a cached HNSW index is stale because the
+    /// underlying vectors have changed. Includes both keys and text-vec bytes
+    /// in the hash so re-embedding the same IRI with a new vector triggers a
+    /// rebuild.
+    fn entries_fingerprint(&self) -> Vec<u8> {
+        let mut keys: Vec<&String> = self.entries.keys().collect();
+        keys.sort();
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for k in keys {
+            for byte in k.as_bytes() {
+                hash ^= *byte as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+            let v = &self.entries[k];
+            for f in &v.text_vec {
+                for byte in f.to_le_bytes() {
+                    hash ^= byte as u64;
+                    hash = hash.wrapping_mul(0x100000001b3);
+                }
+            }
+        }
+        hash.to_le_bytes().to_vec()
+    }
+
+    /// Force-rebuild the HNSW cosine index using explicit HNSW parameters.
+    /// Drops any previously-built index. The new index is held in memory; call
+    /// [`Self::persist_cosine_index`] to save it.
+    pub fn rebuild_cosine_index(&mut self, params: crate::hnsw_index::BuildParams) {
+        if self.entries.is_empty() {
+            self.cosine_index = None;
+            return;
+        }
+        let points: Vec<(String, Vec<f32>)> = self
+            .entries
+            .iter()
+            .map(|(iri, e)| (iri.clone(), e.text_vec.clone()))
+            .collect();
+        self.cosine_index = Some(crate::hnsw_index::CosineIndex::build_with_params(
+            points, params,
+        ));
+    }
+
+    /// Persist the current HNSW cosine index to SQLite (table `hnsw_index_cache`).
+    /// Builds the index first if it isn't built. Subsequent `load_cosine_index()`
+    /// calls (e.g. at process startup via `load_from_db`) read it back and skip
+    /// the rebuild as long as the entry fingerprint matches.
+    pub fn persist_cosine_index(&mut self) -> anyhow::Result<()> {
+        if self.entries.is_empty() {
+            return Ok(());
+        }
+        if self.cosine_index.is_none() {
+            let points: Vec<(String, Vec<f32>)> = self
+                .entries
+                .iter()
+                .map(|(iri, e)| (iri.clone(), e.text_vec.clone()))
+                .collect();
+            self.cosine_index = Some(CosineIndex::build(points));
+        }
+        let bytes = match self.cosine_index.as_ref() {
+            Some(idx) => idx.to_bytes()?,
+            None => return Ok(()),
+        };
+        let fp = self.entries_fingerprint();
+        let count = self.entries.len() as i64;
+        let conn = self.db.conn();
+        conn.execute(
+            "INSERT OR REPLACE INTO hnsw_index_cache (kind, entries_hash, entry_count, serialised) \
+             VALUES ('cosine', ?1, ?2, ?3)",
+            rusqlite::params![fp, count, bytes],
+        )?;
+        Ok(())
+    }
+
+    /// Try to load a previously-persisted HNSW cosine index. If the stored
+    /// fingerprint matches the current entries' fingerprint, the index is
+    /// deserialised in-place and subsequent `search_cosine_hnsw` calls skip
+    /// the rebuild. If the fingerprint mismatches (or no cache exists), this
+    /// is a no-op and the next `search_cosine_hnsw` rebuilds normally.
+    pub fn load_cosine_index(&mut self) -> anyhow::Result<bool> {
+        let conn = self.db.conn();
+        let row: Option<(Vec<u8>, Vec<u8>)> = conn
+            .query_row(
+                "SELECT entries_hash, serialised FROM hnsw_index_cache WHERE kind = 'cosine'",
+                [],
+                |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .ok();
+        let (stored_hash, bytes) = match row {
+            Some(x) => x,
+            None => return Ok(false),
+        };
+        let current_hash = self.entries_fingerprint();
+        if stored_hash != current_hash {
+            // Stale — let the rebuild path handle it next time.
+            return Ok(false);
+        }
+        self.cosine_index = Some(CosineIndex::from_bytes(&bytes)?);
+        Ok(true)
+    }
+
     pub fn persist(&self) -> anyhow::Result<()> {
         let conn = self.db.conn();
         let tx = conn.unchecked_transaction()?;
@@ -151,24 +252,31 @@ impl VecStore {
     }
 
     pub fn load_from_db(&mut self) -> anyhow::Result<()> {
-        let conn = self.db.conn();
-        let mut stmt = conn.prepare("SELECT iri, text_vec, struct_vec FROM embeddings")?;
-        let rows = stmt.query_map([], |row| {
-            let iri: String = row.get(0)?;
-            let text_bytes: Vec<u8> = row.get(1)?;
-            let struct_bytes: Vec<u8> = row.get(2)?;
-            Ok((iri, text_bytes, struct_bytes))
-        })?;
+        // Scope the connection + statement so the conn MutexGuard is dropped
+        // before we call `load_cosine_index` (which re-acquires it).
+        {
+            let conn = self.db.conn();
+            let mut stmt = conn.prepare("SELECT iri, text_vec, struct_vec FROM embeddings")?;
+            let rows = stmt.query_map([], |row| {
+                let iri: String = row.get(0)?;
+                let text_bytes: Vec<u8> = row.get(1)?;
+                let struct_bytes: Vec<u8> = row.get(2)?;
+                Ok((iri, text_bytes, struct_bytes))
+            })?;
 
-        for row in rows {
-            let (iri, text_bytes, struct_bytes) = row?;
-            self.entries.insert(iri, VecEntry {
-                text_vec: bytes_to_f32_vec(&text_bytes),
-                struct_vec: bytes_to_f32_vec(&struct_bytes),
-            });
+            for row in rows {
+                let (iri, text_bytes, struct_bytes) = row?;
+                self.entries.insert(iri, VecEntry {
+                    text_vec: bytes_to_f32_vec(&text_bytes),
+                    struct_vec: bytes_to_f32_vec(&struct_bytes),
+                });
+            }
         }
-        // Invalidate any previously-built HNSW index.
+        // Invalidate any previously-built HNSW index; try to load a persisted
+        // one. If the persisted fingerprint matches the entries we just loaded,
+        // the next `search_cosine_hnsw` skips the rebuild.
         self.cosine_index = None;
+        let _ = self.load_cosine_index()?;
         Ok(())
     }
 
