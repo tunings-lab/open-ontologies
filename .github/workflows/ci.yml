@@ -7,7 +7,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       CARGO_INCREMENTAL: 0
@@ -15,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
+        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/local/share/chromium /usr/local/share/edge
           sudo apt-get clean

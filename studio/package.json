@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && npm run prepare-engine",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare-engine": "node ./scripts/prepare-engine.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

@@ -114,6 +114,8 @@ cd open-ontologies && cargo build --release
 ./target/release/open-ontologies init
 ```
 
+For native Windows builds, see [docs/windows.md](docs/windows.md).
+
 ### Connect to your MCP client
 
 <details>
