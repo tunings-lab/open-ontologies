@@ -674,8 +674,19 @@ fn build_tool_filter(
     })
 }
 
+fn main() -> anyhow::Result<()> {
+    // The root async future is polled on the calling thread. Windows gives
+    // the main thread 1 MiB of stack (vs 8 MiB on Linux/macOS), which
+    // overflows in debug builds, so run on a thread with an explicit 8 MiB.
+    std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(async_main)?
+        .join()
+        .expect("main thread panicked")
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn async_main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
