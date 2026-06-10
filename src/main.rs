@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use rmcp::ServiceExt;
 use std::sync::Arc;
 
-use open_ontologies::config::{expand_tilde, Config};
+use open_ontologies::config::{Config, expand_tilde};
 use open_ontologies::graph::GraphStore;
 use open_ontologies::server::OpenOntologiesServer;
 use open_ontologies::state::StateDb;
@@ -134,7 +134,10 @@ data_dir = "~/.open-ontologies"
 "#;
 
 #[derive(Parser)]
-#[command(name = "open-ontologies", about = "Terraform for Knowledge Graphs — AI-native ontology engine")]
+#[command(
+    name = "open-ontologies",
+    about = "Terraform for Knowledge Graphs — AI-native ontology engine"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -235,6 +238,7 @@ enum Commands {
     },
 
     /// Start unix socket server for Tardygrada fact grounding
+    #[cfg(unix)]
     ServeUnix {
         #[arg(long, default_value = "~/.open-ontologies/config.toml")]
         config: String,
@@ -244,6 +248,16 @@ enum Commands {
         socket: Option<String>,
         /// Ontology files to load on startup. When omitted, falls back to
         /// `[socket] preload_files` from the config.
+        #[arg(long = "file", num_args = 1..)]
+        files: Vec<String>,
+    },
+    /// Unix socket transport is not available on Windows.
+    #[cfg(windows)]
+    ServeUnix {
+        #[arg(long, default_value = "~/.open-ontologies/config.toml")]
+        config: String,
+        #[arg(long)]
+        socket: Option<String>,
         #[arg(long = "file", num_args = 1..)]
         files: Vec<String>,
     },
@@ -277,10 +291,7 @@ enum Commands {
     /// Run SPARQL query (or stdin with -)
     Query { query: String },
     /// Compare two ontology files
-    Diff {
-        old_path: String,
-        new_path: String,
-    },
+    Diff { old_path: String, new_path: String },
     /// Lint: check for missing labels, domains, ranges
     Lint { input: String },
     /// Convert between RDF formats
@@ -388,10 +399,7 @@ enum Commands {
         reason: Option<String>,
     },
     /// Detect drift between two ontology versions
-    Drift {
-        file_a: String,
-        file_b: String,
-    },
+    Drift { file_a: String, file_b: String },
     /// Run design pattern enforcement
     Enforce {
         #[arg(default_value = "generic")]
@@ -569,27 +577,23 @@ fn build_cache_config(
 /// (when set) takes precedence over `level`. Idempotent: re-invocations are
 /// harmless because `try_init` returns `Err` after the first install.
 fn init_tracing(cfg: &open_ontologies::config::LoggingConfig) {
-    use tracing_subscriber::{fmt, EnvFilter};
+    use tracing_subscriber::{EnvFilter, fmt};
 
     let level = open_ontologies::config::resolve_logging_level(cfg);
-    let env_filter = EnvFilter::try_new(&level)
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_new(&level).unwrap_or_else(|_| EnvFilter::new("info"));
 
     // Output target: file when configured, else stderr (tracing default).
-    let writer_file = cfg
-        .file
-        .as_deref()
-        .and_then(|p| {
-            let path = open_ontologies::config::expand_tilde(p);
-            if let Some(parent) = std::path::Path::new(&path).parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)
-                .ok()
-        });
+    let writer_file = cfg.file.as_deref().and_then(|p| {
+        let path = open_ontologies::config::expand_tilde(p);
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .ok()
+    });
 
     let format = cfg.format.trim().to_lowercase();
     // Build and install. Use `try_init` so calling this from multiple
@@ -643,11 +647,19 @@ fn build_tool_filter(
     }
     if let Some(spec) = cli_allow {
         let (list, groups) = parse_csv(spec);
-        return Ok(ToolFilter { mode: Mode::Allow, list, groups });
+        return Ok(ToolFilter {
+            mode: Mode::Allow,
+            list,
+            groups,
+        });
     }
     if let Some(spec) = cli_deny {
         let (list, groups) = parse_csv(spec);
-        return Ok(ToolFilter { mode: Mode::Deny, list, groups });
+        return Ok(ToolFilter {
+            mode: Mode::Deny,
+            list,
+            groups,
+        });
     }
     // Fall back to config file.
     let mode = if cfg.tools.mode.is_empty() {
@@ -662,12 +674,28 @@ fn build_tool_filter(
     })
 }
 
+fn main() -> anyhow::Result<()> {
+    // The root async future is polled on the calling thread. Windows gives
+    // the main thread 1 MiB of stack (vs 8 MiB on Linux/macOS), which
+    // overflows in debug builds, so run on a thread with an explicit 8 MiB.
+    std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(async_main)?
+        .join()
+        .expect("main thread panicked")
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn async_main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { data_dir, model_url: _model_url, tokenizer_url: _tokenizer_url, model_name: _model_name } => {
+        Commands::Init {
+            data_dir,
+            model_url: _model_url,
+            tokenizer_url: _tokenizer_url,
+            model_name: _model_name,
+        } => {
             let data_dir = expand_tilde(&data_dir);
             let data_path = std::path::Path::new(&data_dir);
 
@@ -723,13 +751,16 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     std::fs::create_dir_all(&models_dir)?;
 
-                    let onnx_url = _model_url.as_deref()
+                    let onnx_url = _model_url
+                        .as_deref()
                         .or(cfg.model_url.as_deref())
                         .unwrap_or(open_ontologies::embed::BGE_SMALL_ONNX_URL);
-                    let tok_url = _tokenizer_url.as_deref()
+                    let tok_url = _tokenizer_url
+                        .as_deref()
                         .or(cfg.tokenizer_url.as_deref())
                         .unwrap_or(open_ontologies::embed::BGE_SMALL_TOKENIZER_URL);
-                    let onnx_filename = _model_name.as_deref()
+                    let onnx_filename = _model_name
+                        .as_deref()
                         .or(cfg.model_name.as_deref())
                         .unwrap_or("bge-small-en-v1.5.onnx");
 
@@ -738,10 +769,7 @@ async fn main() -> anyhow::Result<()> {
 
                     if !model_path.exists() {
                         println!("Downloading embedding model from {}...", onnx_url);
-                        open_ontologies::embed::download_model_file(
-                            onnx_url,
-                            &model_path,
-                        ).await?;
+                        open_ontologies::embed::download_model_file(onnx_url, &model_path).await?;
                         println!("  Model saved: {}", model_path.display());
                     } else {
                         println!("Embedding model already exists: {}", model_path.display());
@@ -749,10 +777,8 @@ async fn main() -> anyhow::Result<()> {
 
                     if !tokenizer_path.exists() {
                         println!("Downloading tokenizer from {}...", tok_url);
-                        open_ontologies::embed::download_model_file(
-                            tok_url,
-                            &tokenizer_path,
-                        ).await?;
+                        open_ontologies::embed::download_model_file(tok_url, &tokenizer_path)
+                            .await?;
                         println!("  Tokenizer saved: {}", tokenizer_path.display());
                     } else {
                         println!("Tokenizer already exists: {}", tokenizer_path.display());
@@ -762,7 +788,16 @@ async fn main() -> anyhow::Result<()> {
 
             println!("\nOpen Ontologies initialized successfully!");
         }
-        Commands::Serve { config: config_path, governance_webhook, watch, watch_interval, tools_allow, tools_deny, idle_ttl_secs, auto_refresh } => {
+        Commands::Serve {
+            config: config_path,
+            governance_webhook,
+            watch,
+            watch_interval,
+            tools_allow,
+            tools_deny,
+            idle_ttl_secs,
+            auto_refresh,
+        } => {
             let config_path = expand_tilde(&config_path);
             let cfg = match Config::load(std::path::Path::new(&config_path)) {
                 Ok(c) => c,
@@ -793,8 +828,9 @@ async fn main() -> anyhow::Result<()> {
             // `[monitor] enabled`. CLI `--watch-interval` > env > `[monitor]
             // interval_secs` > default 30.
             let monitor_enabled = watch || cfg.monitor.enabled;
-            let monitor_interval = watch_interval
-                .unwrap_or_else(|| open_ontologies::config::resolve_monitor_interval_secs(&cfg.monitor));
+            let monitor_interval = watch_interval.unwrap_or_else(|| {
+                open_ontologies::config::resolve_monitor_interval_secs(&cfg.monitor)
+            });
 
             let _watch_handle = if monitor_enabled {
                 let watch_db = StateDb::open(&db_path)?;
@@ -808,11 +844,16 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let cache_config = build_cache_config(&cfg, idle_ttl_secs, auto_refresh);
-            let tool_filter = build_tool_filter(&cfg, tools_allow.as_deref(), tools_deny.as_deref())?;
-            let ontology_dirs = open_ontologies::config::resolve_ontology_dirs(&cfg.general.ontology_dirs);
+            let tool_filter =
+                build_tool_filter(&cfg, tools_allow.as_deref(), tools_deny.as_deref())?;
+            let ontology_dirs =
+                open_ontologies::config::resolve_ontology_dirs(&cfg.general.ontology_dirs);
             for d in &ontology_dirs {
                 if !d.exists() {
-                    eprintln!("warning: ontology_dirs entry does not exist: {}", d.display());
+                    eprintln!(
+                        "warning: ontology_dirs entry does not exist: {}",
+                        d.display()
+                    );
                 }
             }
             let server = OpenOntologiesServer::new_with_repo_options(
@@ -828,7 +869,19 @@ async fn main() -> anyhow::Result<()> {
             let service = server.serve(rmcp::transport::stdio()).await?;
             service.waiting().await?;
         }
-        Commands::ServeHttp { config: config_path, host, port, token, governance_webhook, watch, watch_interval, tools_allow, tools_deny, idle_ttl_secs, auto_refresh } => {
+        Commands::ServeHttp {
+            config: config_path,
+            host,
+            port,
+            token,
+            governance_webhook,
+            watch,
+            watch_interval,
+            tools_allow,
+            tools_deny,
+            idle_ttl_secs,
+            auto_refresh,
+        } => {
             use rmcp::transport::streamable_http_server::{
                 StreamableHttpServerConfig, StreamableHttpService,
                 session::local::LocalSessionManager,
@@ -852,14 +905,15 @@ async fn main() -> anyhow::Result<()> {
 
             // Resolve effective host / port / token / stateful_mode honouring
             // CLI > env > config > default precedence.
-            let host = host.unwrap_or_else(|| open_ontologies::config::resolve_http_host(&cfg.http));
-            let port = port.unwrap_or_else(|| open_ontologies::config::resolve_http_port(&cfg.http));
+            let host =
+                host.unwrap_or_else(|| open_ontologies::config::resolve_http_host(&cfg.http));
+            let port =
+                port.unwrap_or_else(|| open_ontologies::config::resolve_http_port(&cfg.http));
             // Clap reads `OPEN_ONTOLOGIES_TOKEN` into `token` automatically
             // (because of `env = "OPEN_ONTOLOGIES_TOKEN"`), so a non-`None`
             // value already encompasses CLI + env. Fall back to config when
             // neither is set.
-            let token = token
-                .or_else(|| open_ontologies::config::resolve_http_token(&cfg.http));
+            let token = token.or_else(|| open_ontologies::config::resolve_http_token(&cfg.http));
 
             let data_dir = expand_tilde(&cfg.general.data_dir);
             let db_path_owned = std::path::Path::new(&data_dir).join("open-ontologies.db");
@@ -873,8 +927,9 @@ async fn main() -> anyhow::Result<()> {
             let shared_db = StateDb::open(&db_path_owned)?;
 
             let monitor_enabled = watch || cfg.monitor.enabled;
-            let monitor_interval = watch_interval
-                .unwrap_or_else(|| open_ontologies::config::resolve_monitor_interval_secs(&cfg.monitor));
+            let monitor_interval = watch_interval.unwrap_or_else(|| {
+                open_ontologies::config::resolve_monitor_interval_secs(&cfg.monitor)
+            });
 
             let _watch_handle = if monitor_enabled {
                 let watch_db = StateDb::open(&db_path_owned)?;
@@ -898,11 +953,16 @@ async fn main() -> anyhow::Result<()> {
             let gw_for_service = governance_webhook.clone();
             let embed_config = cfg.embeddings.clone();
             let cache_config = build_cache_config(&cfg, idle_ttl_secs, auto_refresh);
-            let tool_filter = build_tool_filter(&cfg, tools_allow.as_deref(), tools_deny.as_deref())?;
-            let ontology_dirs = open_ontologies::config::resolve_ontology_dirs(&cfg.general.ontology_dirs);
+            let tool_filter =
+                build_tool_filter(&cfg, tools_allow.as_deref(), tools_deny.as_deref())?;
+            let ontology_dirs =
+                open_ontologies::config::resolve_ontology_dirs(&cfg.general.ontology_dirs);
             for d in &ontology_dirs {
                 if !d.exists() {
-                    eprintln!("warning: ontology_dirs entry does not exist: {}", d.display());
+                    eprintln!(
+                        "warning: ontology_dirs entry does not exist: {}",
+                        d.display()
+                    );
                 }
             }
             // Spawn a single evictor backed by a registry over the shared graph.
@@ -920,32 +980,30 @@ async fn main() -> anyhow::Result<()> {
             let cache_for_service = cache_config.clone();
             let filter_for_service = tool_filter.clone();
             let dirs_for_service = ontology_dirs.clone();
-            let service: StreamableHttpService<_, LocalSessionManager> =
-                StreamableHttpService::new(
-                    move || {
-                        let db = StateDb::open(&db_path_owned)
-                            .map_err(std::io::Error::other)?;
-                        Ok(OpenOntologiesServer::new_with_repo_options(
-                            db,
-                            shared_graph_for_service.clone(),
-                            gw_for_service.clone(),
-                            embed_config.clone(),
-                            cache_for_service.clone(),
-                            filter_for_service.clone(),
-                            dirs_for_service.clone(),
-                        ))
-                    },
-                    Default::default(),
-                    http_config,
-                );
+            let service: StreamableHttpService<_, LocalSessionManager> = StreamableHttpService::new(
+                move || {
+                    let db = StateDb::open(&db_path_owned).map_err(std::io::Error::other)?;
+                    Ok(OpenOntologiesServer::new_with_repo_options(
+                        db,
+                        shared_graph_for_service.clone(),
+                        gw_for_service.clone(),
+                        embed_config.clone(),
+                        cache_for_service.clone(),
+                        filter_for_service.clone(),
+                        dirs_for_service.clone(),
+                    ))
+                },
+                Default::default(),
+                http_config,
+            );
 
             // Simple REST API — no MCP sessions, direct access to shared graph
-            let sg_stats  = shared_graph.clone();
-            let sg_query  = shared_graph.clone();
+            let sg_stats = shared_graph.clone();
+            let sg_query = shared_graph.clone();
             let sg_update = shared_graph.clone();
-            let sg_load         = shared_graph.clone();
-            let sg_save         = shared_graph.clone();
-            let sg_load_turtle  = shared_graph.clone();
+            let sg_load = shared_graph.clone();
+            let sg_save = shared_graph.clone();
+            let sg_load_turtle = shared_graph.clone();
             let api = axum::Router::new()
                 .route("/stats", axum::routing::get(move || {
                     let g = sg_stats.clone();
@@ -1049,20 +1107,25 @@ async fn main() -> anyhow::Result<()> {
                 .nest_service("/mcp", service);
             let router = if let Some(ref token) = token {
                 let expected = format!("Bearer {}", token);
-                router.layer(axum::middleware::from_fn(move |req: axum::extract::Request, next: axum::middleware::Next| {
-                    let expected = expected.clone();
-                    async move {
-                        let auth = req.headers().get("authorization").and_then(|v| v.to_str().ok());
-                        if auth == Some(&expected) {
-                            next.run(req).await
-                        } else {
-                            axum::http::Response::builder()
-                                .status(401)
-                                .body(axum::body::Body::from("Unauthorized"))
-                                .unwrap()
+                router.layer(axum::middleware::from_fn(
+                    move |req: axum::extract::Request, next: axum::middleware::Next| {
+                        let expected = expected.clone();
+                        async move {
+                            let auth = req
+                                .headers()
+                                .get("authorization")
+                                .and_then(|v| v.to_str().ok());
+                            if auth == Some(&expected) {
+                                next.run(req).await
+                            } else {
+                                axum::http::Response::builder()
+                                    .status(401)
+                                    .body(axum::body::Body::from("Unauthorized"))
+                                    .unwrap()
+                            }
                         }
-                    }
-                }))
+                    },
+                ))
             } else {
                 router
             };
@@ -1079,7 +1142,12 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
         }
 
-        Commands::ServeUnix { config: config_path, socket, files } => {
+        #[cfg(unix)]
+        Commands::ServeUnix {
+            config: config_path,
+            socket,
+            files,
+        } => {
             let config_path = expand_tilde(&config_path);
             let cfg = match Config::load(std::path::Path::new(&config_path)) {
                 Ok(c) => c,
@@ -1121,6 +1189,13 @@ async fn main() -> anyhow::Result<()> {
             eprintln!("Graph has {} triples total", graph.triple_count());
             open_ontologies::socket::serve(&socket_path, graph).await?;
         }
+        #[cfg(windows)]
+        Commands::ServeUnix { .. } => {
+            eprintln!(
+                "serve-unix is not available on Windows. Use `serve` or `serve-http` instead."
+            );
+            std::process::exit(1);
+        }
 
         // ─── Batch ──────────────────────────────────────────────────
         Commands::Batch { input, bail } => {
@@ -1147,7 +1222,10 @@ async fn main() -> anyhow::Result<()> {
                 GraphStore::validate_file(&input)
             };
             match result {
-                Ok(count) => output_json(&serde_json::json!({"ok": true, "triples": count}), cli.pretty),
+                Ok(count) => output_json(
+                    &serde_json::json!({"ok": true, "triples": count}),
+                    cli.pretty,
+                ),
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1157,7 +1235,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Load { path } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             match graph.load_file(&path) {
-                Ok(count) => output_json(&serde_json::json!({"ok": true, "triples_loaded": count, "path": path}), cli.pretty),
+                Ok(count) => output_json(
+                    &serde_json::json!({"ok": true, "triples_loaded": count, "path": path}),
+                    cli.pretty,
+                ),
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1167,7 +1248,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Save { path, format } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             match graph.save_file(&path, &format) {
-                Ok(_) => output_json(&serde_json::json!({"ok": true, "path": path, "format": format}), cli.pretty),
+                Ok(_) => output_json(
+                    &serde_json::json!({"ok": true, "path": path, "format": format}),
+                    cli.pretty,
+                ),
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1177,7 +1261,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Clear => {
             let (_db, graph) = setup(&cli.data_dir)?;
             match graph.clear() {
-                Ok(_) => output_json(&serde_json::json!({"ok": true, "message": "Store cleared"}), cli.pretty),
+                Ok(_) => output_json(
+                    &serde_json::json!({"ok": true, "message": "Store cleared"}),
+                    cli.pretty,
+                ),
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1186,7 +1273,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Stats => {
             let (_db, graph) = setup(&cli.data_dir)?;
-            let stats_json = graph.get_stats().unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let stats_json = graph
+                .get_stats()
+                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&stats_json, cli.pretty);
         }
         Commands::Query { query } => {
@@ -1198,14 +1287,17 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 query
             };
-            let result = graph.sparql_select(&query_str).unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let result = graph
+                .sparql_select(&query_str)
+                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
         Commands::Diff { old_path, new_path } => {
             use open_ontologies::ontology::OntologyService;
             let old = std::fs::read_to_string(&old_path)?;
             let new = std::fs::read_to_string(&new_path)?;
-            let result = OntologyService::diff(&old, &new).unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let result = OntologyService::diff(&old, &new)
+                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
         Commands::Lint { input } => {
@@ -1218,28 +1310,30 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 std::fs::read_to_string(&input)?
             };
-            let result = OntologyService::lint_with_feedback(&content, Some(&db)).unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let result = OntologyService::lint_with_feedback(&content, Some(&db))
+                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
         Commands::Convert { path, to, output } => {
             let store = GraphStore::new();
             match store.load_file(&path) {
-                Ok(_) => {
-                    match store.serialize(&to) {
-                        Ok(content) => {
-                            if let Some(out_path) = output {
-                                std::fs::write(&out_path, &content)?;
-                                output_json(&serde_json::json!({"ok": true, "path": out_path, "format": to}), cli.pretty);
-                            } else {
-                                println!("{}", content);
-                            }
-                        }
-                        Err(e) => {
-                            output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
-                            std::process::exit(1);
+                Ok(_) => match store.serialize(&to) {
+                    Ok(content) => {
+                        if let Some(out_path) = output {
+                            std::fs::write(&out_path, &content)?;
+                            output_json(
+                                &serde_json::json!({"ok": true, "path": out_path, "format": to}),
+                                cli.pretty,
+                            );
+                        } else {
+                            println!("{}", content);
                         }
                     }
-                }
+                    Err(e) => {
+                        output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
+                        std::process::exit(1);
+                    }
+                },
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1248,11 +1342,14 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Status => {
             let (_db, graph) = setup(&cli.data_dir)?;
-            output_json(&serde_json::json!({
-                "status": "ok",
-                "version": env!("CARGO_PKG_VERSION"),
-                "triples_loaded": graph.triple_count(),
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "status": "ok",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "triples_loaded": graph.triple_count(),
+                }),
+                cli.pretty,
+            );
         }
 
         // ─── Remote ─────────────────────────────────────────────────
@@ -1261,19 +1358,25 @@ async fn main() -> anyhow::Result<()> {
             match action.as_str() {
                 "list" => {
                     let entries = marketplace::list(domain.as_deref());
-                    let items: Vec<serde_json::Value> = entries.iter().map(|e| {
-                        serde_json::json!({
-                            "id": e.id,
-                            "name": e.name,
-                            "description": e.description,
-                            "domain": e.domain,
-                            "format": marketplace::format_name(e.format),
+                    let items: Vec<serde_json::Value> = entries
+                        .iter()
+                        .map(|e| {
+                            serde_json::json!({
+                                "id": e.id,
+                                "name": e.name,
+                                "description": e.description,
+                                "domain": e.domain,
+                                "format": marketplace::format_name(e.format),
+                            })
                         })
-                    }).collect();
-                    output_json(&serde_json::json!({
-                        "count": items.len(),
-                        "ontologies": items,
-                    }), cli.pretty);
+                        .collect();
+                    output_json(
+                        &serde_json::json!({
+                            "count": items.len(),
+                            "ontologies": items,
+                        }),
+                        cli.pretty,
+                    );
                 }
                 "install" => {
                     let id = id.as_deref().unwrap_or_else(|| {
@@ -1283,7 +1386,10 @@ async fn main() -> anyhow::Result<()> {
                     let entry = match marketplace::find(id) {
                         Some(e) => e,
                         None => {
-                            eprintln!("Unknown ontology ID: '{}'. Run 'marketplace list' to see available IDs.", id);
+                            eprintln!(
+                                "Unknown ontology ID: '{}'. Run 'marketplace list' to see available IDs.",
+                                id
+                            );
                             std::process::exit(1);
                         }
                     };
@@ -1292,16 +1398,22 @@ async fn main() -> anyhow::Result<()> {
                     match graph.load_content_with_base(&content, entry.format, Some(entry.url)) {
                         Ok(count) => {
                             let stats = graph.get_stats().unwrap_or_default();
-                            output_json(&serde_json::json!({
-                                "ok": true,
-                                "installed": entry.id,
-                                "name": entry.name,
-                                "triples_loaded": count,
-                                "stats": serde_json::from_str::<serde_json::Value>(&stats).unwrap_or_default(),
-                            }), cli.pretty);
+                            output_json(
+                                &serde_json::json!({
+                                    "ok": true,
+                                    "installed": entry.id,
+                                    "name": entry.name,
+                                    "triples_loaded": count,
+                                    "stats": serde_json::from_str::<serde_json::Value>(&stats).unwrap_or_default(),
+                                }),
+                                cli.pretty,
+                            );
                         }
                         Err(e) => {
-                            output_json(&serde_json::json!({"error": format!("Parse error: {}", e)}), cli.pretty);
+                            output_json(
+                                &serde_json::json!({"error": format!("Parse error: {}", e)}),
+                                cli.pretty,
+                            );
                             std::process::exit(1);
                         }
                     }
@@ -1315,24 +1427,37 @@ async fn main() -> anyhow::Result<()> {
         Commands::Pull { url, sparql, query } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             let content = if sparql {
-                let q = query.as_deref().unwrap_or("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }");
+                let q = query
+                    .as_deref()
+                    .unwrap_or("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }");
                 GraphStore::fetch_sparql(&url, q).await?
             } else {
                 GraphStore::fetch_url(&url).await?
             };
             match graph.load_turtle(&content, None) {
-                Ok(count) => output_json(&serde_json::json!({"ok": true, "triples_loaded": count, "source": url}), cli.pretty),
+                Ok(count) => output_json(
+                    &serde_json::json!({"ok": true, "triples_loaded": count, "source": url}),
+                    cli.pretty,
+                ),
                 Err(e) => {
-                    output_json(&serde_json::json!({"error": format!("Parse error: {}", e)}), cli.pretty);
+                    output_json(
+                        &serde_json::json!({"error": format!("Parse error: {}", e)}),
+                        cli.pretty,
+                    );
                     std::process::exit(1);
                 }
             }
         }
-        Commands::Push { endpoint, graph: graph_name } => {
+        Commands::Push {
+            endpoint,
+            graph: graph_name,
+        } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             let content = graph.serialize("ntriples")?;
             match GraphStore::push_sparql(&endpoint, &content).await {
-                Ok(msg) => output_json(&serde_json::json!({"ok": true, "message": msg}), cli.pretty),
+                Ok(msg) => {
+                    output_json(&serde_json::json!({"ok": true, "message": msg}), cli.pretty)
+                }
                 Err(e) => {
                     output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                     std::process::exit(1);
@@ -1345,23 +1470,27 @@ async fn main() -> anyhow::Result<()> {
             let mut imported = Vec::new();
             let mut to_import: Vec<String> = Vec::new();
 
-            let query = "SELECT ?import WHERE { ?onto <http://www.w3.org/2002/07/owl#imports> ?import }";
+            let query =
+                "SELECT ?import WHERE { ?onto <http://www.w3.org/2002/07/owl#imports> ?import }";
             if let Ok(result) = graph.sparql_select(query)
                 && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result)
-                    && let Some(results) = parsed["results"].as_array() {
-                        for row in results {
-                            if let Some(uri) = row["import"].as_str() {
-                                let uri = uri.trim_matches(|c| c == '<' || c == '>');
-                                to_import.push(uri.to_string());
-                            }
-                        }
+                && let Some(results) = parsed["results"].as_array()
+            {
+                for row in results {
+                    if let Some(uri) = row["import"].as_str() {
+                        let uri = uri.trim_matches(|c| c == '<' || c == '>');
+                        to_import.push(uri.to_string());
                     }
+                }
+            }
 
             let mut depth = 0;
             while !to_import.is_empty() && depth < max_depth {
                 let batch = std::mem::take(&mut to_import);
                 for url in batch {
-                    if imported.contains(&url) { continue; }
+                    if imported.contains(&url) {
+                        continue;
+                    }
                     match GraphStore::fetch_url(&url).await {
                         Ok(content) => {
                             if let Ok(count) = graph.load_turtle(&content, None) {
@@ -1375,7 +1504,10 @@ async fn main() -> anyhow::Result<()> {
                 depth += 1;
             }
 
-            output_json(&serde_json::json!({"ok": true, "imported": imported.len(), "urls": imported}), cli.pretty);
+            output_json(
+                &serde_json::json!({"ok": true, "imported": imported.len(), "urls": imported}),
+                cli.pretty,
+            );
         }
 
         // ─── Versioning ────────────────────────────────────────────
@@ -1402,7 +1534,11 @@ async fn main() -> anyhow::Result<()> {
         }
 
         // ─── Data pipeline ──────────────────────────────────────────
-        Commands::Map { data_path, format: _format, save } => {
+        Commands::Map {
+            data_path,
+            format: _format,
+            save,
+        } => {
             use open_ontologies::ingest::DataIngester;
             use open_ontologies::mapping::MappingConfig;
             let (_db, graph) = setup(&cli.data_dir)?;
@@ -1416,12 +1552,19 @@ async fn main() -> anyhow::Result<()> {
             let classes = graph.sparql_select(classes_query).unwrap_or_default();
             let props = graph.sparql_select(props_query).unwrap_or_default();
 
-            let mapping = MappingConfig::from_headers(&headers, "http://example.org/data/", "http://example.org/data/Thing");
+            let mapping = MappingConfig::from_headers(
+                &headers,
+                "http://example.org/data/",
+                "http://example.org/data/Thing",
+            );
             let mapping_json = serde_json::to_string_pretty(&mapping).unwrap_or_default();
 
             if let Some(save_path) = save {
                 std::fs::write(&save_path, &mapping_json)?;
-                output_json(&serde_json::json!({"ok": true, "saved": save_path}), cli.pretty);
+                output_json(
+                    &serde_json::json!({"ok": true, "saved": save_path}),
+                    cli.pretty,
+                );
             } else {
                 let extract_iris = |json: &str, var: &str| -> Vec<String> {
                     serde_json::from_str::<serde_json::Value>(json)
@@ -1429,18 +1572,30 @@ async fn main() -> anyhow::Result<()> {
                         .and_then(|v| v["results"].as_array().cloned())
                         .unwrap_or_default()
                         .iter()
-                        .filter_map(|r| r[var].as_str().map(|s| s.trim_matches(|c| c == '<' || c == '>').to_string()))
+                        .filter_map(|r| {
+                            r[var]
+                                .as_str()
+                                .map(|s| s.trim_matches(|c| c == '<' || c == '>').to_string())
+                        })
                         .collect()
                 };
-                output_json(&serde_json::json!({
-                    "data_fields": headers,
-                    "ontology_classes": extract_iris(&classes, "c"),
-                    "ontology_properties": extract_iris(&props, "p"),
-                    "suggested_mapping": serde_json::from_str::<serde_json::Value>(&mapping_json).unwrap_or_default(),
-                }), cli.pretty);
+                output_json(
+                    &serde_json::json!({
+                        "data_fields": headers,
+                        "ontology_classes": extract_iris(&classes, "c"),
+                        "ontology_properties": extract_iris(&props, "p"),
+                        "suggested_mapping": serde_json::from_str::<serde_json::Value>(&mapping_json).unwrap_or_default(),
+                    }),
+                    cli.pretty,
+                );
             }
         }
-        Commands::Ingest { path, format: _format, mapping, base_iri } => {
+        Commands::Ingest {
+            path,
+            format: _format,
+            mapping,
+            base_iri,
+        } => {
             use open_ontologies::ingest::DataIngester;
             use open_ontologies::mapping::MappingConfig;
             let (_db, graph) = setup(&cli.data_dir)?;
@@ -1449,7 +1604,10 @@ async fn main() -> anyhow::Result<()> {
             let rows = DataIngester::parse_file(&path)?;
 
             if rows.is_empty() {
-                output_json(&serde_json::json!({"ok": true, "triples_loaded": 0, "warnings": ["No data rows found"]}), cli.pretty);
+                output_json(
+                    &serde_json::json!({"ok": true, "triples_loaded": 0, "warnings": ["No data rows found"]}),
+                    cli.pretty,
+                );
             } else {
                 let mapping_config = if let Some(ref mapping_path) = mapping {
                     let content = std::fs::read_to_string(mapping_path)?;
@@ -1461,7 +1619,10 @@ async fn main() -> anyhow::Result<()> {
 
                 let ntriples = mapping_config.rows_to_ntriples(&rows);
                 match graph.load_ntriples(&ntriples) {
-                    Ok(count) => output_json(&serde_json::json!({"ok": true, "triples_loaded": count, "rows": rows.len()}), cli.pretty),
+                    Ok(count) => output_json(
+                        &serde_json::json!({"ok": true, "triples_loaded": count, "rows": rows.len()}),
+                        cli.pretty,
+                    ),
                     Err(e) => {
                         output_json(&serde_json::json!({"error": e.to_string()}), cli.pretty);
                         std::process::exit(1);
@@ -1484,11 +1645,17 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
-        Commands::Extend { data_path, format: _format, mapping, shapes, profile } => {
+        Commands::Extend {
+            data_path,
+            format: _format,
+            mapping,
+            shapes,
+            profile,
+        } => {
             use open_ontologies::ingest::DataIngester;
             use open_ontologies::mapping::MappingConfig;
-            use open_ontologies::shacl::ShaclValidator;
             use open_ontologies::reason::Reasoner;
+            use open_ontologies::shacl::ShaclValidator;
             let (_db, graph) = setup(&cli.data_dir)?;
 
             let base_iri = "http://example.org/data/";
@@ -1509,23 +1676,30 @@ async fn main() -> anyhow::Result<()> {
             // 2. SHACL (optional)
             let shacl_result = if let Some(ref shapes_path) = shapes {
                 let shapes_content = std::fs::read_to_string(shapes_path)?;
-                Some(ShaclValidator::validate(&graph, &shapes_content)
-                    .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e)))
+                Some(
+                    ShaclValidator::validate(&graph, &shapes_content)
+                        .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e)),
+                )
             } else {
                 None
             };
 
             // 3. Reason (optional)
-            let reason_result = profile.as_ref().map(|prof| Reasoner::run(&graph, prof, true)
-                    .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e)));
+            let reason_result = profile.as_ref().map(|prof| {
+                Reasoner::run(&graph, prof, true)
+                    .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e))
+            });
 
-            output_json(&serde_json::json!({
-                "ok": true,
-                "triples_loaded": triples_loaded,
-                "rows": rows.len(),
-                "shacl": shacl_result.and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()),
-                "reason": reason_result.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()),
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "ok": true,
+                    "triples_loaded": triples_loaded,
+                    "rows": rows.len(),
+                    "shacl": shacl_result.and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()),
+                    "reason": reason_result.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()),
+                }),
+                cli.pretty,
+            );
         }
 
         // ─── Lifecycle ──────────────────────────────────────────────
@@ -1533,14 +1707,16 @@ async fn main() -> anyhow::Result<()> {
             let (db, graph) = setup(&cli.data_dir)?;
             let turtle = std::fs::read_to_string(&file)?;
             let planner = open_ontologies::plan::Planner::new(db, graph);
-            let result = planner.plan(&turtle)
+            let result = planner
+                .plan(&turtle)
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
         Commands::Apply { mode } => {
             let (db, graph) = setup(&cli.data_dir)?;
             let planner = open_ontologies::plan::Planner::new(db, graph);
-            let result = planner.apply(&mode)
+            let result = planner
+                .apply(&mode)
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
@@ -1551,25 +1727,30 @@ async fn main() -> anyhow::Result<()> {
             for iri in &iris {
                 planner.lock_iri(iri, reason_str);
             }
-            output_json(&serde_json::json!({
-                "ok": true,
-                "locked": iris,
-                "reason": reason_str,
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "ok": true,
+                    "locked": iris,
+                    "reason": reason_str,
+                }),
+                cli.pretty,
+            );
         }
         Commands::Drift { file_a, file_b } => {
             let (db, _graph) = setup(&cli.data_dir)?;
             let v1 = std::fs::read_to_string(&file_a)?;
             let v2 = std::fs::read_to_string(&file_b)?;
             let detector = open_ontologies::drift::DriftDetector::new(db);
-            let result = detector.detect(&v1, &v2)
+            let result = detector
+                .detect(&v1, &v2)
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
         Commands::Enforce { pack } => {
             let (db, graph) = setup(&cli.data_dir)?;
             let enforcer = open_ontologies::enforce::Enforcer::new(db.clone(), graph);
-            let result = enforcer.enforce_with_feedback(&pack, Some(&db))
+            let result = enforcer
+                .enforce_with_feedback(&pack, Some(&db))
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
@@ -1585,17 +1766,23 @@ async fn main() -> anyhow::Result<()> {
             let (db, graph) = setup(&cli.data_dir)?;
             let monitor = open_ontologies::monitor::Monitor::new(db, graph);
             monitor.clear_blocked();
-            output_json(&serde_json::json!({"ok": true, "message": "Monitor block cleared"}), cli.pretty);
+            output_json(
+                &serde_json::json!({"ok": true, "message": "Monitor block cleared"}),
+                cli.pretty,
+            );
         }
         Commands::Lineage { session } => {
             let (db, _graph) = setup(&cli.data_dir)?;
             let lineage = open_ontologies::lineage::LineageLog::new(db);
             let session_id = session.unwrap_or_else(|| "current".to_string());
             let events = lineage.get_compact(&session_id);
-            output_json(&serde_json::json!({
-                "session_id": session_id,
-                "events": events.trim(),
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "session_id": session_id,
+                    "events": events.trim(),
+                }),
+                cli.pretty,
+            );
         }
 
         // ─── Clinical ──────────────────────────────────────────────
@@ -1603,25 +1790,35 @@ async fn main() -> anyhow::Result<()> {
             match open_ontologies::clinical::ClinicalCrosswalks::load("data/crosswalks.parquet") {
                 Ok(cw) => {
                     let results = cw.lookup(&code, &system);
-                    output_json(&serde_json::json!({
-                        "code": code,
-                        "system": system,
-                        "mappings": results.iter().map(|r| serde_json::json!({
-                            "target_code": r.target_code,
-                            "target_system": r.target_system,
-                            "relation": r.relation,
-                            "source_label": r.source_label,
-                            "target_label": r.target_label,
-                        })).collect::<Vec<_>>(),
-                    }), cli.pretty);
+                    output_json(
+                        &serde_json::json!({
+                            "code": code,
+                            "system": system,
+                            "mappings": results.iter().map(|r| serde_json::json!({
+                                "target_code": r.target_code,
+                                "target_system": r.target_system,
+                                "relation": r.relation,
+                                "source_label": r.source_label,
+                                "target_label": r.target_label,
+                            })).collect::<Vec<_>>(),
+                        }),
+                        cli.pretty,
+                    );
                 }
                 Err(e) => {
-                    output_json(&serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}), cli.pretty);
+                    output_json(
+                        &serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}),
+                        cli.pretty,
+                    );
                     std::process::exit(1);
                 }
             }
         }
-        Commands::Enrich { class_iri, code, system } => {
+        Commands::Enrich {
+            class_iri,
+            code,
+            system,
+        } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             match open_ontologies::clinical::ClinicalCrosswalks::load("data/crosswalks.parquet") {
                 Ok(cw) => {
@@ -1629,7 +1826,10 @@ async fn main() -> anyhow::Result<()> {
                     output_result(&result, cli.pretty);
                 }
                 Err(e) => {
-                    output_json(&serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}), cli.pretty);
+                    output_json(
+                        &serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}),
+                        cli.pretty,
+                    );
                     std::process::exit(1);
                 }
             }
@@ -1639,7 +1839,10 @@ async fn main() -> anyhow::Result<()> {
             match open_ontologies::clinical::ClinicalCrosswalks::load("data/crosswalks.parquet") {
                 Ok(cw) => output_result(&cw.validate_clinical(&graph), cli.pretty),
                 Err(e) => {
-                    output_json(&serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}), cli.pretty);
+                    output_json(
+                        &serde_json::json!({"error": format!("Crosswalks not loaded: {}", e)}),
+                        cli.pretty,
+                    );
                     std::process::exit(1);
                 }
             }
@@ -1647,7 +1850,10 @@ async fn main() -> anyhow::Result<()> {
 
         // ─── Schema import ─────────────────────────────────────────
         #[allow(unreachable_code, unused_variables)]
-        Commands::ImportSchema { connection, base_iri } => {
+        Commands::ImportSchema {
+            connection,
+            base_iri,
+        } => {
             let (_db, graph) = setup(&cli.data_dir)?;
             let driver = match open_ontologies::sqlsource::detect_driver(&connection) {
                 Ok(d) => d,
@@ -1661,11 +1867,17 @@ async fn main() -> anyhow::Result<()> {
                 open_ontologies::sqlsource::SqlDriver::Postgres => {
                     #[cfg(feature = "postgres")]
                     {
-                        open_ontologies::schema::SchemaIntrospector::introspect_postgres(&connection).await?
+                        open_ontologies::schema::SchemaIntrospector::introspect_postgres(
+                            &connection,
+                        )
+                        .await?
                     }
                     #[cfg(not(feature = "postgres"))]
                     {
-                        output_json(&serde_json::json!({"error": "import-schema for postgres requires the 'postgres' feature (compile with --features postgres)"}), cli.pretty);
+                        output_json(
+                            &serde_json::json!({"error": "import-schema for postgres requires the 'postgres' feature (compile with --features postgres)"}),
+                            cli.pretty,
+                        );
                         std::process::exit(1);
                     }
                 }
@@ -1680,28 +1892,41 @@ async fn main() -> anyhow::Result<()> {
                     }
                     #[cfg(not(feature = "duckdb"))]
                     {
-                        output_json(&serde_json::json!({"error": "import-schema for duckdb requires the 'duckdb' feature (compile with --features duckdb)"}), cli.pretty);
+                        output_json(
+                            &serde_json::json!({"error": "import-schema for duckdb requires the 'duckdb' feature (compile with --features duckdb)"}),
+                            cli.pretty,
+                        );
                         std::process::exit(1);
                     }
                 }
             };
 
-            let turtle = open_ontologies::schema::SchemaIntrospector::generate_turtle(&tables, &base_iri);
+            let turtle =
+                open_ontologies::schema::SchemaIntrospector::generate_turtle(&tables, &base_iri);
 
             // Validate + load
             GraphStore::validate_turtle(&turtle)?;
             let count = graph.load_turtle(&turtle, Some(&base_iri))?;
 
-            output_json(&serde_json::json!({
-                "ok": true,
-                "driver": driver.as_str(),
-                "tables": tables.len(),
-                "classes": tables.len(),
-                "triples": count,
-                "base_iri": base_iri,
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "ok": true,
+                    "driver": driver.as_str(),
+                    "tables": tables.len(),
+                    "classes": tables.len(),
+                    "triples": count,
+                    "base_iri": base_iri,
+                }),
+                cli.pretty,
+            );
         }
-        Commands::SqlIngest { connection, sql, mapping, inline_mapping, base_iri } => {
+        Commands::SqlIngest {
+            connection,
+            sql,
+            mapping,
+            inline_mapping,
+            base_iri,
+        } => {
             use open_ontologies::ingest::DataIngester;
             use open_ontologies::mapping::MappingConfig;
 
@@ -1728,13 +1953,16 @@ async fn main() -> anyhow::Result<()> {
             let rows = open_ontologies::sqlsource::query_rows(&connection, &sql).await?;
 
             if rows.is_empty() {
-                output_json(&serde_json::json!({
-                    "ok": true,
-                    "driver": driver.as_str(),
-                    "triples_loaded": 0,
-                    "rows_processed": 0,
-                    "warnings": ["Query returned no rows"],
-                }), cli.pretty);
+                output_json(
+                    &serde_json::json!({
+                        "ok": true,
+                        "driver": driver.as_str(),
+                        "triples_loaded": 0,
+                        "rows_processed": 0,
+                        "warnings": ["Query returned no rows"],
+                    }),
+                    cli.pretty,
+                );
                 return Ok(());
             }
 
@@ -1753,15 +1981,23 @@ async fn main() -> anyhow::Result<()> {
             let ntriples = mapping_cfg.rows_to_ntriples(&rows);
             let count = graph.load_ntriples(&ntriples)?;
 
-            output_json(&serde_json::json!({
-                "ok": true,
-                "driver": driver.as_str(),
-                "triples_loaded": count,
-                "rows_processed": rows.len(),
-                "mapping_fields": mapping_cfg.mappings.len(),
-            }), cli.pretty);
+            output_json(
+                &serde_json::json!({
+                    "ok": true,
+                    "driver": driver.as_str(),
+                    "triples_loaded": count,
+                    "rows_processed": rows.len(),
+                    "mapping_fields": mapping_cfg.mappings.len(),
+                }),
+                cli.pretty,
+            );
         }
-        Commands::Align { source, target, min_confidence, dry_run } => {
+        Commands::Align {
+            source,
+            target,
+            min_confidence,
+            dry_run,
+        } => {
             let (db, graph) = setup(&cli.data_dir)?;
             let source_ttl = std::fs::read_to_string(&source)?;
             let target_ttl = match target {
@@ -1769,30 +2005,51 @@ async fn main() -> anyhow::Result<()> {
                 None => None,
             };
             let engine = open_ontologies::align::AlignmentEngine::new(db, graph);
-            let result = engine.align(&source_ttl, target_ttl.as_deref(), min_confidence, dry_run)
+            let result = engine
+                .align(&source_ttl, target_ttl.as_deref(), min_confidence, dry_run)
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
-        Commands::AlignFeedback { source, target, accept, reject } => {
+        Commands::AlignFeedback {
+            source,
+            target,
+            accept,
+            reject,
+        } => {
             let (db, graph) = setup(&cli.data_dir)?;
             let engine = open_ontologies::align::AlignmentEngine::new(db, graph);
             let accepted = accept || !reject;
-            let result = engine.record_feedback(&source, &target, "user_feedback", accepted, None)
+            let result = engine
+                .record_feedback(&source, &target, "user_feedback", accepted, None)
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
-        Commands::LintFeedback { rule_id, entity, accept, dismiss } => {
+        Commands::LintFeedback {
+            rule_id,
+            entity,
+            accept,
+            dismiss,
+        } => {
             let (db, _graph) = setup(&cli.data_dir)?;
             let accepted = accept || !dismiss;
-            let result = open_ontologies::feedback::record_tool_feedback(&db, "lint", &rule_id, &entity, accepted)
-                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let result = open_ontologies::feedback::record_tool_feedback(
+                &db, "lint", &rule_id, &entity, accepted,
+            )
+            .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
-        Commands::EnforceFeedback { rule_id, entity, accept, dismiss } => {
+        Commands::EnforceFeedback {
+            rule_id,
+            entity,
+            accept,
+            dismiss,
+        } => {
             let (db, _graph) = setup(&cli.data_dir)?;
             let accepted = accept || !dismiss;
-            let result = open_ontologies::feedback::record_tool_feedback(&db, "enforce", &rule_id, &entity, accepted)
-                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            let result = open_ontologies::feedback::record_tool_feedback(
+                &db, "enforce", &rule_id, &entity, accepted,
+            )
+            .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }
     }

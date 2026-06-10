@@ -21,7 +21,6 @@ pub struct Config {
     pub logging: LoggingConfig,
 }
 
-
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
@@ -76,7 +75,11 @@ pub fn resolve_ontology_dirs(cfg: &[String]) -> Vec<std::path::PathBuf> {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect(),
-        _ => cfg.iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+        _ => cfg
+            .iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
     };
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::with_capacity(raw.len());
@@ -251,10 +254,12 @@ pub struct ToolsConfig {
 
 /// Expand a leading `~` in a path to the user's home directory.
 pub fn expand_tilde(path: &str) -> String {
-    if (path.starts_with("~/") || path == "~")
-        && let Some(home) = std::env::var_os("HOME") {
+    if path.starts_with("~/") || path == "~" {
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+        if let Some(home) = home {
             return path.replacen("~", &home.to_string_lossy(), 1);
         }
+    }
     path.to_string()
 }
 
@@ -269,7 +274,11 @@ pub struct WebhookConfig {
     pub request_timeout_secs: u64,
 }
 impl Default for WebhookConfig {
-    fn default() -> Self { Self { request_timeout_secs: 10 } }
+    fn default() -> Self {
+        Self {
+            request_timeout_secs: 10,
+        }
+    }
 }
 
 /// `[http]` — Streamable HTTP transport (`serve-http`).
@@ -320,7 +329,12 @@ pub struct MonitorConfig {
     pub interval_secs: u64,
 }
 impl Default for MonitorConfig {
-    fn default() -> Self { Self { enabled: false, interval_secs: 30 } }
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            interval_secs: 30,
+        }
+    }
 }
 
 /// `[reasoner]` — RDFS / OWL-RL fixpoint and DL tableaux limits.
@@ -340,7 +354,11 @@ pub struct ReasonerConfig {
 }
 impl Default for ReasonerConfig {
     fn default() -> Self {
-        Self { tableaux_max_depth: 100, tableaux_max_nodes: 10_000, max_iterations: 64 }
+        Self {
+            tableaux_max_depth: 100,
+            tableaux_max_nodes: 10_000,
+            max_iterations: 64,
+        }
     }
 }
 
@@ -357,7 +375,12 @@ pub struct FeedbackConfig {
     pub downgrade_threshold: i64,
 }
 impl Default for FeedbackConfig {
-    fn default() -> Self { Self { suppress_threshold: 3, downgrade_threshold: 2 } }
+    fn default() -> Self {
+        Self {
+            suppress_threshold: 3,
+            downgrade_threshold: 2,
+        }
+    }
 }
 
 /// `[imports]` — `owl:imports` resolution policy.
@@ -379,7 +402,11 @@ pub struct ImportsConfig {
 }
 impl Default for ImportsConfig {
     fn default() -> Self {
-        Self { max_depth: 3, request_timeout_secs: 30, follow_remote: true }
+        Self {
+            max_depth: 3,
+            request_timeout_secs: 30,
+            follow_remote: true,
+        }
     }
 }
 
@@ -392,7 +419,11 @@ pub struct RepoConfig {
     pub default_list_limit: usize,
 }
 impl Default for RepoConfig {
-    fn default() -> Self { Self { default_list_limit: 1000 } }
+    fn default() -> Self {
+        Self {
+            default_list_limit: 1000,
+        }
+    }
 }
 
 /// `[socket]` — Unix domain socket adapter for Tardygrada fact grounding.
@@ -425,7 +456,11 @@ pub struct LoggingConfig {
 }
 impl Default for LoggingConfig {
     fn default() -> Self {
-        Self { level: "info".into(), format: "compact".into(), file: None }
+        Self {
+            level: "info".into(),
+            format: "compact".into(),
+            file: None,
+        }
     }
 }
 
@@ -448,8 +483,7 @@ pub fn resolve_imports_timeout_secs(cfg: &ImportsConfig) -> u64 {
 /// Resolve the monitor sweep interval. Precedence:
 /// `OPEN_ONTOLOGIES_MONITOR_INTERVAL_SECS` > config > default.
 pub fn resolve_monitor_interval_secs(cfg: &MonitorConfig) -> u64 {
-    parse_env_u64("OPEN_ONTOLOGIES_MONITOR_INTERVAL_SECS")
-        .unwrap_or(cfg.interval_secs)
+    parse_env_u64("OPEN_ONTOLOGIES_MONITOR_INTERVAL_SECS").unwrap_or(cfg.interval_secs)
 }
 
 /// Resolve the HTTP bind host. Precedence:
@@ -677,7 +711,9 @@ mod tests {
             }
         }
 
-        let webhook = WebhookConfig { request_timeout_secs: 7 };
+        let webhook = WebhookConfig {
+            request_timeout_secs: 7,
+        };
         assert_eq!(resolve_webhook_timeout_secs(&webhook), 7);
 
         let imports = ImportsConfig {
@@ -687,7 +723,10 @@ mod tests {
         };
         assert_eq!(resolve_imports_timeout_secs(&imports), 42);
 
-        let monitor = MonitorConfig { enabled: true, interval_secs: 11 };
+        let monitor = MonitorConfig {
+            enabled: true,
+            interval_secs: 11,
+        };
         assert_eq!(resolve_monitor_interval_secs(&monitor), 11);
     }
 

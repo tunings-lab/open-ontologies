@@ -1,22 +1,72 @@
+use std::io::BufRead;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use std::io::BufRead;
 use tauri::{Emitter, Manager};
 
 pub struct ChatState {
     pub process: Mutex<Option<Child>>,
 }
 
+fn resolve_node_binary() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            PathBuf::from(r"C:\Program Files\nodejs\node.exe"),
+            PathBuf::from(r"C:\Program Files (x86)\nodejs\node.exe"),
+        ];
+        if let Some(path) = candidates.into_iter().find(|path| path.exists()) {
+            return path;
+        }
+        PathBuf::from("node")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let candidates = [
+            PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+        ];
+        if let Some(path) = candidates.into_iter().find(|path| path.exists()) {
+            return path;
+        }
+        PathBuf::from("node")
+    }
+}
+
+fn augmented_path() -> String {
+    let mut parts: Vec<String> = Vec::new();
+    #[cfg(target_os = "windows")]
+    {
+        parts.push(r"C:\Program Files\nodejs".to_string());
+        if let Some(home) = std::env::var_os("USERPROFILE") {
+            parts.push(format!(r"{}\.\cargo\bin", home.to_string_lossy()));
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        parts.push("/opt/homebrew/bin".to_string());
+        parts.push("/usr/local/bin".to_string());
+        parts.push("/usr/bin".to_string());
+    }
+    if let Ok(existing) = std::env::var("PATH") {
+        parts.push(existing);
+    }
+    let separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+    parts.join(separator)
+}
+
 pub fn spawn_agent_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
     let sidecar_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sidecars/agent");
+    let node = resolve_node_binary();
 
-    let mut child = Command::new("node")
+    let mut child = Command::new(&node)
         .arg(sidecar_dir.join("dist/index.js"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:{}", std::env::var("PATH").unwrap_or_default()))
+        .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| format!("Failed to spawn agent sidecar: {e}"))?;
 
@@ -49,7 +99,11 @@ pub fn spawn_agent_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn send_chat_message(message: String, mode: String, state: tauri::State<ChatState>) -> Result<(), String> {
+pub fn send_chat_message(
+    message: String,
+    mode: String,
+    state: tauri::State<ChatState>,
+) -> Result<(), String> {
     let mut guard = state.process.lock().map_err(|e| format!("Lock error: {e}"))?;
     let child = guard.as_mut().ok_or("Agent sidecar not running")?;
     let stdin = child.stdin.as_mut().ok_or("No stdin")?;

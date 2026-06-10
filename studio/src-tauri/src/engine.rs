@@ -1,4 +1,5 @@
 use std::io::BufRead;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -9,25 +10,117 @@ pub struct EngineState {
     pub child: Mutex<Option<Child>>,
 }
 
+fn engine_binary_names() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &["open-ontologies-x86_64-pc-windows-msvc.exe", "open-ontologies.exe"]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            "open-ontologies-aarch64-apple-darwin",
+            "open-ontologies-x86_64-apple-darwin",
+            "open-ontologies",
+        ]
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        &[
+            "open-ontologies-x86_64-unknown-linux-gnu",
+            "open-ontologies-x86_64-unknown-linux-musl",
+            "open-ontologies",
+        ]
+    }
+}
+
+fn find_existing_binary(dir: &Path) -> Option<PathBuf> {
+    engine_binary_names()
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|path| path.exists())
+}
+
+fn resolve_engine_binary() -> Result<PathBuf, String> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bundled_dir = manifest_dir.join("binaries");
+    if let Some(path) = find_existing_binary(&bundled_dir) {
+        return Ok(path);
+    }
+
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(|p| p.parent())
+        .ok_or("Cannot resolve workspace root from Tauri manifest directory")?;
+    for profile in ["release", "debug"] {
+        let candidate_dir = workspace_root.join("target").join(profile);
+        if let Some(path) = find_existing_binary(&candidate_dir) {
+            return Ok(path);
+        }
+    }
+
+    Err(format!(
+        "No open-ontologies binary found. Checked {} and workspace target/{{release,debug}}.",
+        bundled_dir.display()
+    ))
+}
+
+fn stale_pids_on_port(port: u16) -> Vec<u32> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("netstat")
+            .args(["-ano", "-p", "tcp"])
+            .output();
+        let Ok(output) = output else {
+            return Vec::new();
+        };
+        let needle = format!(":{}", port);
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|line| line.contains("LISTENING") && line.contains(&needle))
+            .filter_map(|line| line.split_whitespace().last())
+            .filter_map(|pid| pid.parse::<u32>().ok())
+            .collect()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new("lsof")
+            .args(["-ti", &format!("tcp:{}", port)])
+            .output();
+        let Ok(output) = output else {
+            return Vec::new();
+        };
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(|line| line.trim().parse::<u32>().ok())
+            .collect()
+    }
+}
+
+fn kill_process(pid: u32) {
+    #[cfg(target_os = "windows")]
+    let _ = Command::new("taskkill")
+        .args(["/F", "/PID", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    #[cfg(not(target_os = "windows"))]
+    let _ = Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+fn clear_stale_port(port: u16) {
+    for pid in stale_pids_on_port(port) {
+        kill_process(pid);
+    }
+}
+
 pub fn spawn_engine(app: &tauri::AppHandle) -> Result<(), String> {
-    let binaries_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
-
-    // Find the engine binary (e.g. open-ontologies-aarch64-apple-darwin)
-    let binary = std::fs::read_dir(&binaries_dir)
-        .map_err(|e| format!("Cannot list binaries dir {}: {e}", binaries_dir.display()))?
-        .filter_map(|e| e.ok())
-        .find(|e| {
-            let name = e.file_name();
-            let s = name.to_string_lossy();
-            s.starts_with("open-ontologies") && !s.ends_with(".d")
-        })
-        .map(|e| e.path())
-        .ok_or_else(|| "No open-ontologies binary found in binaries/".to_string())?;
-
-    // Kill any stale process on port 8080 (e.g. from a previous hot-reload cycle)
-    let _ = Command::new("sh")
-        .args(["-c", "lsof -ti:8080 | xargs kill -9 2>/dev/null; true"])
-        .output();
+    let binary = resolve_engine_binary()?;
+    clear_stale_port(8080);
     std::thread::sleep(std::time::Duration::from_millis(300));
 
     eprintln!("[engine] spawning {}", binary.display());
@@ -46,7 +139,8 @@ pub fn spawn_engine(app: &tauri::AppHandle) -> Result<(), String> {
         for line in reader.lines() {
             if let Ok(line) = line {
                 eprintln!("[engine] {}", line);
-                if line.contains("listening") || line.contains("Listening") || line.contains("8080") {
+                if line.contains("listening") || line.contains("Listening") || line.contains("8080")
+                {
                     let _ = app_handle.emit("engine-ready", true);
                 }
             }
@@ -57,7 +151,6 @@ pub fn spawn_engine(app: &tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<EngineState>();
     *state.child.lock().map_err(|e| format!("Lock error: {e}"))? = Some(child);
 
-    // Emit ready after 2s as fallback
     let app_handle2 = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(2));

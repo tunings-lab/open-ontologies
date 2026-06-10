@@ -10,10 +10,16 @@ jobs:
         include:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-musl
+            artifact_name: open-ontologies
           - os: macos-latest
             target: aarch64-apple-darwin
+            artifact_name: open-ontologies
           - os: macos-14
             target: x86_64-apple-darwin
+            artifact_name: open-ontologies
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: open-ontologies.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +35,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: open-ontologies-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/open-ontologies
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
   release:
     needs: build
@@ -43,7 +49,11 @@ jobs:
           for dir in open-ontologies-*/; do
             target="${dir%/}"
             target="${target#open-ontologies-}"
-            mv "${dir}open-ontologies" "${dir}open-ontologies-${target}"
+            if [ -f "${dir}open-ontologies.exe" ]; then
+              mv "${dir}open-ontologies.exe" "${dir}open-ontologies-${target}.exe"
+            else
+              mv "${dir}open-ontologies" "${dir}open-ontologies-${target}"
+            fi
           done
       - name: Create release
         uses: softprops/action-gh-release@v2
