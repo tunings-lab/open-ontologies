@@ -1,0 +1,46 @@
+name: Python Release
+
+# Publishes the python/ bridge (open-ontologies-lite) to PyPI on a py-v* tag,
+# e.g. `git tag py-v0.1.1 && git push origin py-v0.1.1`.
+#
+# Uses PyPI Trusted Publishing (OIDC): no API token is stored. Configure once at
+# https://pypi.org/manage/project/open-ontologies-lite/settings/publishing/
+#   Owner: fabio-rovai | Repo: open-ontologies
+#   Workflow: python-release.yml | Environment: pypi
+on:
+  push:
+    tags: ['py-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build wheel + sdist
+        working-directory: python
+        run: uv build
+      - name: Check metadata
+        working-directory: python
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: python/dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # OIDC token for Trusted Publishing; no secret needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
