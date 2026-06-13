@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-ontologies-lite"
+version = "0.1.0"
+description = "Lightweight Python bridge to the Oxigraph RDF/OWL engine, MCP server included. No Rust toolchain, no compilation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Fabio Rovai" }]
+keywords = ["ontology", "rdf", "owl", "sparql", "oxigraph", "mcp", "knowledge-graph"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "pyoxigraph>=0.5,<0.6",
+    "mcp>=1.2",
+]
+
+[project.optional-dependencies]
+shacl = ["pyshacl>=0.26"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+open-ontologies-lite = "open_ontologies_lite.server:main"
+
+[project.urls]
+Homepage = "https://github.com/fabio-rovai/open-ontologies"
+Repository = "https://github.com/fabio-rovai/open-ontologies"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/open_ontologies_lite"]
