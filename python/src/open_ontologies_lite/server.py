@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from . import __version__
 from .engine import OntologyEngine
 
 mcp = FastMCP(
@@ -86,6 +87,18 @@ def onto_lint() -> dict:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="open-ontologies-lite",
+        description="Lightweight RDF/OWL ontology MCP server (stdio transport).",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"open-ontologies-lite {__version__}"
+    )
+    # No positional args: parsing only intercepts --help/--version (which exit
+    # cleanly) instead of falling straight through into a blocking server start.
+    parser.parse_args()
     mcp.run(transport="stdio")
 
 
