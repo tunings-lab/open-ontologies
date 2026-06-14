@@ -147,6 +147,12 @@ pub struct OntoPullInput {
     pub sparql: Option<bool>,
     /// Optional SPARQL CONSTRUCT query (required if sparql=true)
     pub query: Option<String>,
+    /// HTTP Basic username for authenticated endpoints (Stardog, GraphDB)
+    pub username: Option<String>,
+    /// HTTP Basic password for authenticated endpoints
+    pub password: Option<String>,
+    /// Bearer token for token-secured endpoints (overrides username/password)
+    pub token: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -155,6 +161,12 @@ pub struct OntoPushInput {
     pub endpoint: String,
     /// Optional named graph IRI
     pub graph: Option<String>,
+    /// HTTP Basic username for authenticated endpoints (Stardog, GraphDB)
+    pub username: Option<String>,
+    /// HTTP Basic password for authenticated endpoints
+    pub password: Option<String>,
+    /// Bearer token for token-secured endpoints (overrides username/password)
+    pub token: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]

@@ -6,6 +6,48 @@ use oxigraph::model::*;
 use oxigraph::sparql::{QueryResults, SparqlEvaluator};
 use oxigraph::store::Store;
 
+/// Optional HTTP authentication for remote SPARQL endpoints.
+///
+/// Enterprise triple stores gate their SPARQL Protocol endpoints behind auth:
+/// Stardog and Ontotext GraphDB accept HTTP Basic; token-secured deployments
+/// accept a Bearer token. Open stores (Apache Jena/Fuseki, Eclipse RDF4J,
+/// public Virtuoso) need none — leave this empty.
+#[derive(Default, Clone)]
+pub struct SparqlAuth {
+    /// HTTP Basic credentials as (username, password).
+    pub basic: Option<(String, String)>,
+    /// Bearer token (takes precedence over `basic` if both are set).
+    pub bearer: Option<String>,
+}
+
+impl SparqlAuth {
+    /// Build from optional username/password/token (e.g. tool inputs).
+    /// Returns a no-auth value when all are absent.
+    pub fn from_parts(
+        username: Option<String>,
+        password: Option<String>,
+        token: Option<String>,
+    ) -> Self {
+        let basic = match (username, password) {
+            (Some(u), Some(p)) => Some((u, p)),
+            (Some(u), None) => Some((u, String::new())),
+            _ => None,
+        };
+        SparqlAuth { basic, bearer: token }
+    }
+
+    /// Apply the configured auth to a request builder.
+    fn apply(&self, rb: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        if let Some(t) = &self.bearer {
+            rb.bearer_auth(t)
+        } else if let Some((u, p)) = &self.basic {
+            rb.basic_auth(u, Some(p))
+        } else {
+            rb
+        }
+    }
+}
+
 /// In-memory RDF graph store backed by Oxigraph.
 pub struct GraphStore {
     store: Mutex<Store>,
@@ -319,29 +361,59 @@ impl GraphStore {
         Ok(resp.text().await?)
     }
 
+    /// Run a SPARQL query against an open (unauthenticated) endpoint.
     pub async fn fetch_sparql(endpoint: &str, query: &str) -> anyhow::Result<String> {
+        Self::fetch_sparql_auth(endpoint, query, &SparqlAuth::default()).await
+    }
+
+    /// Run a SPARQL query against an endpoint, with optional HTTP auth.
+    ///
+    /// Works against any SPARQL 1.1 Protocol endpoint: Apache Jena/Fuseki and
+    /// Eclipse RDF4J (no auth), Stardog and Ontotext GraphDB (Basic/Bearer).
+    /// Amazon Neptune with IAM auth requires SigV4 request signing, which this
+    /// path does not perform; use an unsigned/IAM-disabled endpoint or a signing
+    /// proxy in front of Neptune.
+    pub async fn fetch_sparql_auth(
+        endpoint: &str,
+        query: &str,
+        auth: &SparqlAuth,
+    ) -> anyhow::Result<String> {
         let client = reqwest::Client::new();
-        let resp = client
+        let rb = client
             .post(endpoint)
             .header("Content-Type", "application/sparql-query")
             .header("Accept", "text/turtle")
-            .body(query.to_string())
-            .send()
-            .await?;
+            .body(query.to_string());
+        let resp = auth.apply(rb).send().await?;
         if !resp.status().is_success() {
             anyhow::bail!("SPARQL endpoint returned HTTP {}", resp.status());
         }
         Ok(resp.text().await?)
     }
 
+    /// Push triples to an open (unauthenticated) endpoint, default graph.
     pub async fn push_sparql(endpoint: &str, content: &str) -> anyhow::Result<String> {
+        Self::push_sparql_auth(endpoint, content, None, &SparqlAuth::default()).await
+    }
+
+    /// Push triples to an endpoint via SPARQL 1.1 Update, with optional named
+    /// graph and HTTP auth.
+    pub async fn push_sparql_auth(
+        endpoint: &str,
+        content: &str,
+        graph: Option<&str>,
+        auth: &SparqlAuth,
+    ) -> anyhow::Result<String> {
+        let update = match graph {
+            Some(g) => format!("INSERT DATA {{ GRAPH <{g}> {{ {content} }} }}"),
+            None => format!("INSERT DATA {{ {content} }}"),
+        };
         let client = reqwest::Client::new();
-        let resp = client
+        let rb = client
             .post(endpoint)
             .header("Content-Type", "application/sparql-update")
-            .body(format!("INSERT DATA {{ {} }}", content))
-            .send()
-            .await?;
+            .body(update);
+        let resp = auth.apply(rb).send().await?;
         if !resp.status().is_success() {
             anyhow::bail!("SPARQL update returned HTTP {}", resp.status());
         }
