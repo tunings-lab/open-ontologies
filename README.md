@@ -870,6 +870,30 @@ flowchart TD
 
 ---
 
+## Citation
+
+Open Ontologies is described in a preprint. The alignment engine implements the
+stable-matching method introduced there; the Causal layer builds on the
+intervention-verification framework of CIVeX.
+
+- **Open Ontologies: Tool-Augmented Ontology Engineering with Stable Matching Alignment.** Fabio Rovai, 2026. [arXiv:2605.09184](https://arxiv.org/abs/2605.09184)
+- **CIVeX: Causal Intervention Verification for Language Agents.** Fabio Rovai, 2026. [arXiv:2605.09168](https://arxiv.org/abs/2605.09168)
+
+```bibtex
+@article{rovai2026openontologies,
+  title   = {Open Ontologies: Tool-Augmented Ontology Engineering with Stable Matching Alignment},
+  author  = {Rovai, Fabio},
+  journal = {arXiv preprint arXiv:2605.09184},
+  year    = {2026},
+  doi     = {10.48550/arXiv.2605.09184},
+  url     = {https://arxiv.org/abs/2605.09184}
+}
+```
+
+See [`CITATION.cff`](CITATION.cff) for machine-readable metadata. It powers GitHub's "Cite this repository" button.
+
+---
+
 ## License
 
 MIT
