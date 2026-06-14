@@ -558,10 +558,11 @@ impl OpenOntologiesServer {
 
     #[tool(name = "onto_pull", description = "Fetch an ontology from a remote URL or SPARQL endpoint and load it into the store")]
     async fn onto_pull(&self, Parameters(input): Parameters<OntoPullInput>) -> String {
-        use crate::graph::GraphStore;
+        use crate::graph::{GraphStore, SparqlAuth};
+        let auth = SparqlAuth::from_parts(input.username, input.password, input.token);
         if input.sparql.unwrap_or(false) {
             let query = input.query.as_deref().unwrap_or("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }");
-            match GraphStore::fetch_sparql(&input.url, query).await {
+            match GraphStore::fetch_sparql_auth(&input.url, query, &auth).await {
                 Ok(content) => {
                     match self.graph.load_turtle(&content, None) {
                         Ok(count) => format!(r#"{{"ok":true,"triples_loaded":{},"source":"{}"}}"#, count, input.url),
@@ -585,10 +586,11 @@ impl OpenOntologiesServer {
 
     #[tool(name = "onto_push", description = "Push the current ontology store to a remote SPARQL endpoint")]
     async fn onto_push(&self, Parameters(input): Parameters<OntoPushInput>) -> String {
-        use crate::graph::GraphStore;
+        use crate::graph::{GraphStore, SparqlAuth};
+        let auth = SparqlAuth::from_parts(input.username, input.password, input.token);
         match self.graph.serialize("ntriples") {
             Ok(content) => {
-                match GraphStore::push_sparql(&input.endpoint, &content).await {
+                match GraphStore::push_sparql_auth(&input.endpoint, &content, input.graph.as_deref(), &auth).await {
                     Ok(msg) => format!(r#"{{"ok":true,"message":"{}"}}"#, msg),
                     Err(e) => format!(r#"{{"error":"{}"}}"#, e),
                 }

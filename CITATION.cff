@@ -1,0 +1,57 @@
+cff-version: 1.2.0
+message: "If you use Open Ontologies in your research, please cite the paper below."
+title: "Open Ontologies"
+abstract: >-
+  An AI-native ontology engine: a Rust MCP server with tools for building,
+  validating, querying, reasoning over, aligning, planning, and governing
+  RDF/OWL ontologies, backed by an in-memory Oxigraph triple store and a
+  three-layer Dynamics to Causal to Planner architecture.
+type: software
+authors:
+  - family-names: Rovai
+    given-names: Fabio
+repository-code: "https://github.com/fabio-rovai/open-ontologies"
+license: MIT
+keywords:
+  - knowledge-graph
+  - ontology
+  - rdf
+  - owl
+  - sparql
+  - shacl
+  - mcp
+  - model-context-protocol
+  - ontology-alignment
+  - causal-inference
+
+# Cite this paper when referencing the system.
+preferred-citation:
+  type: article
+  title: "Open Ontologies: Tool-Augmented Ontology Engineering with Stable Matching Alignment"
+  authors:
+    - family-names: Rovai
+      given-names: Fabio
+  year: 2026
+  month: 5
+  identifiers:
+    - type: other
+      value: "arXiv:2605.09184"
+      description: arXiv preprint
+  doi: 10.48550/arXiv.2605.09184
+  url: "https://arxiv.org/abs/2605.09184"
+
+# Further reading: the causal-verification foundation of the Causal layer.
+references:
+  - type: article
+    title: "CIVeX: Causal Intervention Verification for Language Agents"
+    authors:
+      - family-names: Rovai
+        given-names: Fabio
+    year: 2026
+    month: 5
+    identifiers:
+      - type: other
+        value: "arXiv:2605.09168"
+        description: arXiv preprint
+    doi: 10.48550/arXiv.2605.09168
+    url: "https://arxiv.org/abs/2605.09168"
