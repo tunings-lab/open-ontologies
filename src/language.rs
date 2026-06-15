@@ -61,13 +61,13 @@ pub fn parse_literal(raw: &str) -> Label {
         // Bare IRI or unquoted local name — no language tag.
         return Label::new(s.to_string(), None);
     }
-    if let Some(close) = s.rfind('"') {
-        if close > 0 {
-            let value = unescape(&s[1..close]);
-            let suffix = &s[close + 1..];
-            let lang = suffix.strip_prefix('@').map(|l| l.to_string());
-            return Label::new(value, lang);
-        }
+    if let Some(close) = s.rfind('"')
+        && close > 0
+    {
+        let value = unescape(&s[1..close]);
+        let suffix = &s[close + 1..];
+        let lang = suffix.strip_prefix('@').map(|l| l.to_string());
+        return Label::new(value, lang);
     }
     // Degenerate input (e.g. a lone `"`). Fall back to a best-effort strip.
     Label::new(s.trim_matches('"').to_string(), None)
