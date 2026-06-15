@@ -8,6 +8,7 @@ use std::path::Path;
 pub struct Config {
     pub general: GeneralConfig,
     pub embeddings: EmbeddingsConfig,
+    pub language: LanguageConfig,
     pub cache: CacheConfig,
     pub tools: ToolsConfig,
     pub webhook: WebhookConfig,
@@ -104,16 +105,17 @@ pub struct EmbeddingsConfig {
     /// `OPEN_ONTOLOGIES_EMBEDDINGS_PROVIDER`.
     pub provider: Option<String>,
     /// Path to the ONNX model file (provider = "local" only).
-    /// Default: ~/.open-ontologies/models/bge-small-en-v1.5.onnx
+    /// Default: ~/.open-ontologies/models/paraphrase-multilingual-MiniLM-L12-v2.onnx
+    /// (falls back to a legacy bge-small-en-v1.5.onnx if that is what is on disk).
     pub model_path: Option<String>,
     /// Path to the tokenizer.json file (provider = "local" only).
     /// Default: ~/.open-ontologies/models/tokenizer.json
     pub tokenizer_path: Option<String>,
-    /// URL to download the ONNX model from. Default: BGE-small-en-v1.5 from Hugging Face
+    /// URL to download the ONNX model from. Default: multilingual MiniLM-L12-v2 from Hugging Face
     pub model_url: Option<String>,
-    /// URL to download the tokenizer from. Default: BGE-small-en-v1.5 tokenizer from Hugging Face
+    /// URL to download the tokenizer from. Default: multilingual MiniLM-L12-v2 tokenizer from Hugging Face
     pub tokenizer_url: Option<String>,
-    /// Filename for the downloaded model. Default: bge-small-en-v1.5.onnx
+    /// Filename for the downloaded model. Default: paraphrase-multilingual-MiniLM-L12-v2.onnx
     pub model_name: Option<String>,
 
     // ─── OpenAI-compatible provider (provider = "openai") ───────────────
@@ -196,6 +198,50 @@ pub fn resolve_embeddings_model(cfg: &EmbeddingsConfig) -> String {
         .filter(|v| !v.trim().is_empty())
         .or_else(|| cfg.model.clone().filter(|v| !v.trim().is_empty()))
         .unwrap_or_else(|| "text-embedding-3-small".to_string())
+}
+
+/// `[language]` — natural-language policy for ontology labels used in
+/// alignment / matching.
+#[derive(Debug, Default, Deserialize, Clone)]
+#[serde(default)]
+pub struct LanguageConfig {
+    /// Preferred natural-language tags (BCP-47, e.g. `["en", "cy"]`) for the
+    /// `rdfs:label` / `skos:prefLabel` / `skos:altLabel` values consulted by
+    /// `onto_align`. Untagged (plain or datatyped) literals are always kept.
+    ///
+    /// An empty list (the default) keeps **all** languages — i.e. fully
+    /// multilingual matching. This only pays off when paired with a
+    /// multilingual embedding model (the default `onto_embed` model is
+    /// multilingual), because cross-lingual matches (`Dog`↔`Chien`) are carried
+    /// by the embedding signal, not by string similarity.
+    ///
+    /// Override at runtime with `OPEN_ONTOLOGIES_LANGUAGES` (comma / colon /
+    /// semicolon separated, e.g. `OPEN_ONTOLOGIES_LANGUAGES=en,fr`).
+    #[serde(alias = "preferred_languages")]
+    pub preferred: Vec<String>,
+}
+
+/// Resolve the preferred-language policy.
+///
+/// Precedence: `OPEN_ONTOLOGIES_LANGUAGES` env var > config field. Entries are
+/// trimmed, lowercased, and emptied entries dropped. An empty result means
+/// "keep all languages" (multilingual mode).
+pub fn resolve_languages(cfg: &LanguageConfig) -> Vec<String> {
+    let from_env = std::env::var("OPEN_ONTOLOGIES_LANGUAGES").ok();
+    let raw: Vec<String> = match from_env {
+        Some(v) if !v.trim().is_empty() => v
+            .split([',', ':', ';'])
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        _ => cfg
+            .preferred
+            .iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+    };
+    raw.into_iter().map(|s| s.to_lowercase()).collect()
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -574,6 +620,31 @@ mod tests {
             .trim()
             .to_lowercase();
         assert_eq!(resolved, "local");
+    }
+
+    #[test]
+    fn language_section_parses_and_defaults_to_multilingual() {
+        // Empty / absent => keep all languages.
+        let cfg: Config = toml::from_str("").expect("parse empty");
+        assert!(cfg.language.preferred.is_empty());
+
+        let toml_src = r#"
+            [language]
+            preferred = ["en", "CY"]
+        "#;
+        let cfg: Config = toml::from_str(toml_src).expect("parse");
+        assert_eq!(cfg.language.preferred, vec!["en", "CY"]);
+        // Resolver lowercases (env var unset in this path).
+        if std::env::var("OPEN_ONTOLOGIES_LANGUAGES").is_err() {
+            assert_eq!(resolve_languages(&cfg.language), vec!["en", "cy"]);
+        }
+
+        // Alias `preferred_languages` also populates the field.
+        let aliased: Config = toml::from_str(
+            "[language]\npreferred_languages = [\"fr\"]\n",
+        )
+        .expect("parse alias");
+        assert_eq!(aliased.language.preferred, vec!["fr"]);
     }
 
     #[test]

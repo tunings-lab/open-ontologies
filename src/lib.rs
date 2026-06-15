@@ -35,6 +35,7 @@ pub mod hnsw_index;
 pub mod ingest;
 pub mod inputs;
 pub mod kgcl;
+pub mod language;
 pub mod lineage;
 pub mod mapping;
 pub mod marketplace;

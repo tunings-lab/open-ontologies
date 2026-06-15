@@ -52,15 +52,26 @@ data_dir = "~/.open-ontologies"
 #
 # ── Local provider (provider = "local", default) ────────────────────────
 # Paths to a local ONNX model and tokenizer (loaded at runtime).
-# model_path = "~/.open-ontologies/models/bge-small-en-v1.5.onnx"
+# Default is the multilingual MiniLM model (see model_url below); labels in
+# different natural languages embed into a shared space for cross-lingual
+# alignment.
+# model_path = "~/.open-ontologies/models/paraphrase-multilingual-MiniLM-L12-v2.onnx"
 # tokenizer_path = "~/.open-ontologies/models/tokenizer.json"
 #
 # URLs used by `open-ontologies init` to download the model.
-# Override these to use a different sentence-transformer model (e.g. for non-English text).
+# Override these to use a different sentence-transformer model. To go back to
+# the smaller English-only model set these to BAAI/bge-small-en-v1.5.
 # The model must be exported to ONNX and use a Hugging Face tokenizer.json.
-# model_url = "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
-# tokenizer_url = "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/tokenizer.json"
-# model_name = "bge-small-en-v1.5.onnx"
+# model_url = "https://huggingface.co/Xenova/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/onnx/model.onnx"
+# tokenizer_url = "https://huggingface.co/Xenova/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/tokenizer.json"
+# model_name = "paraphrase-multilingual-MiniLM-L12-v2.onnx"
+#
+# [language]
+# Preferred natural-language tags for the labels onto_align consults. Untagged
+# literals are always kept. Empty (default) = keep ALL languages (multilingual
+# matching, paired with the multilingual embedding model above). Override with
+# OPEN_ONTOLOGIES_LANGUAGES=en,fr
+# preferred = []
 #
 # ── OpenAI-compatible provider (provider = "openai") ────────────────────
 # Works with the official OpenAI API, Azure OpenAI, Ollama, vLLM, LocalAI,
@@ -157,13 +168,13 @@ enum Commands {
     Init {
         #[arg(long, default_value = "~/.open-ontologies")]
         data_dir: String,
-        /// Custom ONNX model URL (default: BGE-small-en-v1.5 from Hugging Face)
+        /// Custom ONNX model URL (default: multilingual MiniLM-L12-v2 from Hugging Face)
         #[arg(long)]
         model_url: Option<String>,
-        /// Custom tokenizer URL (default: BGE-small-en-v1.5 tokenizer from Hugging Face)
+        /// Custom tokenizer URL (default: multilingual MiniLM-L12-v2 tokenizer from Hugging Face)
         #[arg(long)]
         tokenizer_url: Option<String>,
-        /// Filename for the downloaded ONNX model (default: bge-small-en-v1.5.onnx)
+        /// Filename for the downloaded ONNX model (default: paraphrase-multilingual-MiniLM-L12-v2.onnx)
         #[arg(long)]
         model_name: Option<String>,
     },
@@ -754,15 +765,15 @@ async fn async_main() -> anyhow::Result<()> {
                     let onnx_url = _model_url
                         .as_deref()
                         .or(cfg.model_url.as_deref())
-                        .unwrap_or(open_ontologies::embed::BGE_SMALL_ONNX_URL);
+                        .unwrap_or(open_ontologies::embed::DEFAULT_MODEL_ONNX_URL);
                     let tok_url = _tokenizer_url
                         .as_deref()
                         .or(cfg.tokenizer_url.as_deref())
-                        .unwrap_or(open_ontologies::embed::BGE_SMALL_TOKENIZER_URL);
+                        .unwrap_or(open_ontologies::embed::DEFAULT_MODEL_TOKENIZER_URL);
                     let onnx_filename = _model_name
                         .as_deref()
                         .or(cfg.model_name.as_deref())
-                        .unwrap_or("bge-small-en-v1.5.onnx");
+                        .unwrap_or(open_ontologies::embed::DEFAULT_MODEL_FILENAME);
 
                     let model_path = models_dir.join(onnx_filename);
                     let tokenizer_path = models_dir.join("tokenizer.json");

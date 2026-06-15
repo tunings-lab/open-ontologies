@@ -8,11 +8,31 @@ use tract_onnx::prelude::*;
 
 use crate::poincare::l2_normalize;
 
-/// Model download URLs for bge-small-en-v1.5
-pub const BGE_SMALL_ONNX_URL: &str =
-    "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx";
-pub const BGE_SMALL_TOKENIZER_URL: &str =
-    "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/tokenizer.json";
+/// Default embedding model: multilingual MiniLM (384-dim, BERT-style with
+/// `token_type_ids`, mean pooling — a drop-in match for this loader's input
+/// signature and pooling). Replaces the previous English-only
+/// `bge-small-en-v1.5` so that labels in different natural languages embed into
+/// a *shared* vector space, which is what makes cross-lingual alignment
+/// (`Dog` ↔ `Chien` ↔ `Perro`) possible via the embedding signal in
+/// `onto_align`. Override with `[embeddings] model_url/tokenizer_url/model_name`
+/// or by switching to the OpenAI provider. The `Xenova/*` repo ships the
+/// `onnx/model.onnx` + `tokenizer.json` layout this loader expects.
+pub const DEFAULT_MODEL_ONNX_URL: &str =
+    "https://huggingface.co/Xenova/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/onnx/model.onnx";
+pub const DEFAULT_MODEL_TOKENIZER_URL: &str =
+    "https://huggingface.co/Xenova/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/tokenizer.json";
+/// On-disk filename for the default downloaded model.
+pub const DEFAULT_MODEL_FILENAME: &str = "paraphrase-multilingual-MiniLM-L12-v2.onnx";
+/// Legacy English-only model filename. Still loaded as a fallback when present
+/// so existing installs that downloaded it before the multilingual switch keep
+/// working (with English-only embeddings) until they re-run `init`.
+pub const LEGACY_EN_MODEL_FILENAME: &str = "bge-small-en-v1.5.onnx";
+
+// Back-compat aliases for the previous public constant names.
+#[deprecated(note = "use DEFAULT_MODEL_ONNX_URL")]
+pub const BGE_SMALL_ONNX_URL: &str = DEFAULT_MODEL_ONNX_URL;
+#[deprecated(note = "use DEFAULT_MODEL_TOKENIZER_URL")]
+pub const BGE_SMALL_TOKENIZER_URL: &str = DEFAULT_MODEL_TOKENIZER_URL;
 
 pub struct TextEmbedder {
     #[allow(clippy::type_complexity)]
@@ -154,9 +174,17 @@ impl TextEmbedderProvider {
                     .clone()
                     .map(|p| std::path::PathBuf::from(crate::config::expand_tilde(&p)))
                     .or_else(|| {
-                        default_model_dir
-                            .as_ref()
-                            .map(|d| d.join("bge-small-en-v1.5.onnx"))
+                        default_model_dir.as_ref().map(|d| {
+                            // Prefer the multilingual default; fall back to a
+                            // legacy English model only if it is the one present
+                            // on disk (older installs).
+                            let preferred = d.join(DEFAULT_MODEL_FILENAME);
+                            if preferred.exists() {
+                                return preferred;
+                            }
+                            let legacy = d.join(LEGACY_EN_MODEL_FILENAME);
+                            if legacy.exists() { legacy } else { preferred }
+                        })
                     });
 
                 let tokenizer_path = cfg

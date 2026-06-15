@@ -82,14 +82,14 @@ Claude dynamically decides the next tool call based on what the previous tool re
 | `onto_crosswalk` | To look up clinical terminology mappings (ICD-10 ↔ SNOMED ↔ MeSH) |
 | `onto_enrich` | To add skos:exactMatch triples linking classes to clinical codes |
 | `onto_validate_clinical` | To check class labels against clinical crosswalk terminology |
-| `onto_align` | To detect alignment candidates (equivalentClass, exactMatch, subClassOf) between two ontologies using 7 weighted signals (6 structural + embedding similarity when embeddings are loaded) |
+| `onto_align` | To detect alignment candidates (equivalentClass, exactMatch, subClassOf) between two ontologies using 7 weighted signals (6 structural + embedding similarity when embeddings are loaded). Labels are matched with their parsed BCP-47 language tag; with the multilingual embedder loaded, cross-lingual pairs that share no surface tokens (e.g. `Dog`↔`Chien`) are admitted via the embedding signal. Restrict the languages consulted with `[language] preferred = [...]` / `OPEN_ONTOLOGIES_LANGUAGES` (empty = all) |
 | `onto_align_feedback` | To accept/reject alignment candidates for self-calibrating confidence weights |
 | `onto_lineage` | To view the session's lineage trail (plan → enforce → apply → monitor → drift) |
 | `onto_lint_feedback` | To accept/dismiss a lint issue — teaches lint to suppress repeatedly dismissed warnings |
 | `onto_enforce_feedback` | To accept/dismiss an enforce violation — teaches enforce to suppress repeatedly dismissed violations |
 | `onto_dl_explain` | To explain why a class is unsatisfiable using DL tableaux reasoning — returns clash trace |
 | `onto_dl_check` | To check if one class is subsumed by another using DL tableaux reasoning |
-| `onto_embed` | After loading an ontology — generates text + Poincaré structural embeddings for all classes. Honours `[embeddings] provider = "local" \| "openai"` in `config.toml`; OpenAI-compatible gateways (Azure, Ollama, vLLM, LocalAI, …) are supported via `OPEN_ONTOLOGIES_EMBEDDINGS_*` env vars |
+| `onto_embed` | After loading an ontology — generates text + Poincaré structural embeddings for all classes. The default local model is **multilingual** (`paraphrase-multilingual-MiniLM-L12-v2`), so labels in different natural languages embed into a shared space. Honours `[embeddings] provider = "local" \| "openai"` in `config.toml`; OpenAI-compatible gateways (Azure, Ollama, vLLM, LocalAI, …) are supported via `OPEN_ONTOLOGIES_EMBEDDINGS_*` env vars |
 | `onto_search` | To find classes by natural language description — requires onto_embed first |
 | `onto_similarity` | To compute embedding similarity between two specific IRIs |
 | `onto_unload` | To unload the active ontology from memory. Optional `name` targets a specific cached entry; `delete_cache=true` also removes the on-disk N-Triples cache file |
@@ -182,6 +182,26 @@ When exploring or aligning ontologies using semantic embeddings:
 
 7. When running `onto_align`, embedding similarity is automatically used as signal #7 if embeddings are loaded
 8. This catches semantically equivalent classes that have different labels (e.g., Vehicle ↔ Automobile)
+
+### Cross-Lingual Alignment
+
+The default `onto_embed` model is multilingual, so labels in different natural
+languages embed into a shared vector space. `onto_align` parses the BCP-47
+language tag off each label and, when label similarity is near zero (as it is
+across languages — `Dog` vs `Chien` share no tokens), lets a strong embedding
+match bypass the label pre-filter so the pair is still scored. Such pairs
+typically surface as `borderline` candidates with their language-tagged labels
+in the `context` block, for review via `onto_align_feedback`.
+
+Control which languages are consulted with the `[language]` config section:
+
+```toml
+[language]
+# Empty (default) = keep ALL languages — multilingual matching.
+# Restrict to a set to pin matching to specific languages (untagged labels are
+# always kept). Override with OPEN_ONTOLOGIES_LANGUAGES=en,fr
+preferred = []
+```
 
 ### Borderline-Candidate Review (LLM-as-Oracle Pattern)
 

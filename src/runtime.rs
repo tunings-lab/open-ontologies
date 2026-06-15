@@ -13,9 +13,11 @@
 //! observe the legacy behaviour.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
+use std::sync::RwLock;
 
 use crate::config::{
-    self, Config, FeedbackConfig, ImportsConfig, ReasonerConfig, RepoConfig, WebhookConfig,
+    self, Config, FeedbackConfig, ImportsConfig, LanguageConfig, ReasonerConfig, RepoConfig,
+    WebhookConfig,
 };
 
 // ── Defaults match the previous hardcoded constants exactly ─────────────
@@ -45,6 +47,10 @@ static IMPORTS_MAX_DEPTH: AtomicUsize = AtomicUsize::new(DEFAULT_IMPORTS_MAX_DEP
 static IMPORTS_TIMEOUT: AtomicU64 = AtomicU64::new(DEFAULT_IMPORTS_TIMEOUT);
 static IMPORTS_FOLLOW_REMOTE: AtomicBool = AtomicBool::new(true);
 static WEBHOOK_TIMEOUT: AtomicU64 = AtomicU64::new(DEFAULT_WEBHOOK_TIMEOUT);
+/// Preferred natural-language tags for label matching. Empty (the default)
+/// means "keep all languages" — fully multilingual. Populated from
+/// `[language] preferred` / `OPEN_ONTOLOGIES_LANGUAGES` at startup.
+static PREFERRED_LANGUAGES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 /// Initialise all runtime knobs from a loaded `Config`. Idempotent — calling
 /// this multiple times simply overwrites the current values, which is fine
@@ -56,6 +62,14 @@ pub fn init_from_config(cfg: &Config) {
     apply_repo(&cfg.repo);
     apply_imports(&cfg.imports);
     apply_webhook(&cfg.webhook);
+    apply_language(&cfg.language);
+}
+
+fn apply_language(l: &LanguageConfig) {
+    let resolved = config::resolve_languages(l);
+    if let Ok(mut guard) = PREFERRED_LANGUAGES.write() {
+        *guard = resolved;
+    }
 }
 
 fn apply_reasoner(r: &ReasonerConfig) {
@@ -106,6 +120,16 @@ pub fn imports_max_depth() -> usize { IMPORTS_MAX_DEPTH.load(Ordering::Relaxed) 
 pub fn imports_request_timeout_secs() -> u64 { IMPORTS_TIMEOUT.load(Ordering::Relaxed) }
 pub fn imports_follow_remote() -> bool { IMPORTS_FOLLOW_REMOTE.load(Ordering::Relaxed) }
 pub fn webhook_request_timeout_secs() -> u64 { WEBHOOK_TIMEOUT.load(Ordering::Relaxed) }
+
+/// Preferred natural-language tags for label matching. An empty vector means
+/// "keep all languages" (multilingual mode). Cloned per call so callers hold no
+/// lock; alignment runs are infrequent relative to this cost.
+pub fn preferred_languages() -> Vec<String> {
+    PREFERRED_LANGUAGES
+        .read()
+        .map(|g| g.clone())
+        .unwrap_or_default()
+}
 
 #[cfg(test)]
 mod tests {

@@ -42,7 +42,11 @@ impl AlignmentEngine {
         }
     }
 
-    fn extract_classes(store: &GraphStore) -> Vec<ClassInfo> {
+    /// Extract class IRIs and their labels, parsing the BCP-47 language tag off
+    /// each literal and retaining only labels permitted by `preferred` (empty =
+    /// keep all languages — multilingual mode). Untagged literals are always
+    /// kept.
+    fn extract_classes(store: &GraphStore, preferred: &[String]) -> Vec<ClassInfo> {
         let query = r#"
             SELECT ?class ?label ?altLabel WHERE {
                 ?class a <http://www.w3.org/2002/07/owl#Class> .
@@ -85,25 +89,26 @@ impl AlignmentEngine {
                     labels: Vec::new(),
                 });
 
-                if let Some(label) = row["label"].as_str() {
-                    let l = label.trim_matches('"').to_string();
-                    if !entry.labels.contains(&l) {
-                        entry.labels.push(l);
-                    }
-                }
-                if let Some(alt) = row["altLabel"].as_str() {
-                    let a = alt.trim_matches('"').to_string();
-                    if !entry.labels.contains(&a) {
-                        entry.labels.push(a);
+                for key in ["label", "altLabel"] {
+                    if let Some(raw) = row[key].as_str() {
+                        let label = crate::language::parse_literal(raw);
+                        if !label.text.is_empty()
+                            && crate::language::label_matches_policy(&label, preferred)
+                            && !entry.labels.contains(&label)
+                        {
+                            entry.labels.push(label);
+                        }
                     }
                 }
             }
         }
 
-        // If no label found, use IRI local name
+        // If no policy-matching label was found, fall back to the IRI local
+        // name as a language-neutral label.
         for info in class_map.values_mut() {
             if info.labels.is_empty() {
-                info.labels.push(local_name(&info.iri));
+                info.labels
+                    .push(crate::language::Label::new(local_name(&info.iri), None));
             }
         }
 
@@ -271,8 +276,8 @@ impl AlignmentEngine {
         let mut best = 0.0f64;
         for la in &a.labels {
             for lb in &b.labels {
-                let na = normalize_label(la);
-                let nb = normalize_label(lb);
+                let na = normalize_label(&la.text);
+                let nb = normalize_label(&lb.text);
 
                 // Jaro-Winkler on full normalized strings
                 let jw = jaro_winkler(&na, &nb);
@@ -300,6 +305,13 @@ impl AlignmentEngine {
     /// Default signal weights with embedding signal: label, property, parent, instance, restriction, neighborhood, embedding.
     #[cfg(feature = "embeddings")]
     const DEFAULT_WEIGHTS: [f64; 7] = [0.20, 0.15, 0.12, 0.12, 0.12, 0.09, 0.20];
+
+    /// Minimum embedding cosine for a pair to bypass the label-similarity
+    /// pre-filter. This is the gate that admits cross-lingual matches
+    /// (e.g. `Dog`↔`Chien`), which share no surface tokens and so score ~0 on
+    /// label similarity but high on a multilingual embedding model.
+    #[cfg(feature = "embeddings")]
+    const CROSS_LINGUAL_EMBED_MIN: f64 = 0.80;
 
     #[cfg(feature = "embeddings")]
     /// Compute embedding similarity score using cosine similarity on text vectors.
@@ -360,6 +372,8 @@ impl AlignmentEngine {
     ) -> anyhow::Result<String> {
         // Clamp: degenerate range means "everything above high_threshold; nothing borderline".
         let low_threshold = low_threshold.min(high_threshold);
+        // Active language policy (empty = keep all languages / multilingual).
+        let preferred = crate::runtime::preferred_languages();
         // For RRF the inline weighted-sum confidence is throwaway (recomputed after
         // collection). We collect all label-prefiltered candidates and only apply
         // `low_threshold` to the FINAL fused score post-rerank.
@@ -372,7 +386,7 @@ impl AlignmentEngine {
             let format = Self::detect_content_format(source);
             source_store.load_content(source, format)?;
         }
-        let source_classes = Self::extract_classes(&source_store);
+        let source_classes = Self::extract_classes(&source_store, &preferred);
 
         // Load target into a temporary graph (or use the main store)
         let target_store_owned;
@@ -389,7 +403,7 @@ impl AlignmentEngine {
         } else {
             target_ref = &*self.graph;
         }
-        let target_classes = Self::extract_classes(target_ref);
+        let target_classes = Self::extract_classes(target_ref, &preferred);
 
         // Get learned weights (or defaults)
         let weights = self.get_learned_weights();
@@ -461,19 +475,9 @@ impl AlignmentEngine {
 
                 let label_sim = Self::label_similarity(sc, tc);
 
-                // Pre-filter: skip pairs where label similarity is too low.
-                // Raised from 0.7 to 0.75 to reduce false positives on anatomy-style
-                // ontologies where many terms share token overlap (e.g., "bone" variants).
-                if label_sim < 0.75 {
-                    continue;
-                }
-
-                let prop_overlap = Self::property_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
-                let parent_ovlp = Self::parent_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
-                let inst_overlap = Self::instance_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
-                let restr_sim = Self::restriction_similarity(&source_store, &sc.iri, target_ref, &tc.iri);
-                let neigh_sim = Self::neighborhood_similarity(&source_store, &sc.iri, target_ref, &tc.iri);
-
+                // Embedding similarity is computed BEFORE the label pre-filter so
+                // it can vouch for cross-lingual pairs that share no surface
+                // tokens (label_sim ~ 0) but embed close in a multilingual model.
                 #[cfg(feature = "embeddings")]
                 let embedding_sim = {
                     if let Some(ref vs) = self.vecstore {
@@ -487,6 +491,26 @@ impl AlignmentEngine {
                     }
                 };
 
+                // Pre-filter: skip pairs where label similarity is too low.
+                // Raised from 0.7 to 0.75 to reduce false positives on anatomy-style
+                // ontologies where many terms share token overlap (e.g., "bone" variants).
+                // With embeddings, a strong embedding match bypasses the gate so
+                // cross-lingual equivalences are not discarded before scoring.
+                #[cfg(feature = "embeddings")]
+                if label_sim < 0.75 && embedding_sim < Self::CROSS_LINGUAL_EMBED_MIN {
+                    continue;
+                }
+                #[cfg(not(feature = "embeddings"))]
+                if label_sim < 0.75 {
+                    continue;
+                }
+
+                let prop_overlap = Self::property_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
+                let parent_ovlp = Self::parent_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
+                let inst_overlap = Self::instance_overlap(&source_store, &sc.iri, target_ref, &tc.iri);
+                let restr_sim = Self::restriction_similarity(&source_store, &sc.iri, target_ref, &tc.iri);
+                let neigh_sim = Self::neighborhood_similarity(&source_store, &sc.iri, target_ref, &tc.iri);
+
                 #[cfg(feature = "embeddings")]
                 let signals = [label_sim, prop_overlap, parent_ovlp, inst_overlap, restr_sim, neigh_sim, embedding_sim];
 
@@ -494,13 +518,21 @@ impl AlignmentEngine {
                 let signals = [label_sim, prop_overlap, parent_ovlp, inst_overlap, restr_sim, neigh_sim];
 
                 // Compute confidence. When structural signals are all zero
-                // (common in lightweight OWL files), use label similarity with a
-                // penalty rather than the weighted sum (which would be ~0.25 * label_sim
-                // and too low to pass any threshold).
+                // (common in lightweight OWL files), fall back to the strongest
+                // lexical/semantic signal with a penalty rather than the weighted
+                // sum (which would be ~0.25 * label_sim and too low to pass any
+                // threshold).
                 let structural_sum: f64 = signals[1..6].iter().sum();
                 let confidence: f64 = if structural_sum == 0.0 {
-                    // No structural evidence: use label_sim but apply 15% penalty
-                    label_sim * 0.85
+                    // No structural evidence: apply a 15% penalty to the best
+                    // available signal. With embeddings this lets a strong
+                    // cross-lingual embedding match still surface (typically as a
+                    // borderline candidate for review).
+                    #[cfg(feature = "embeddings")]
+                    let best_signal = label_sim.max(embedding_sim);
+                    #[cfg(not(feature = "embeddings"))]
+                    let best_signal = label_sim;
+                    best_signal * 0.85
                 } else {
                     signals.iter().zip(weights.iter()).map(|(s, w)| s * w).sum()
                 };
@@ -612,11 +644,11 @@ impl AlignmentEngine {
             let t_iri = candidate["target_iri"].as_str().unwrap_or("").to_string();
             let s_labels: Vec<String> = source_class_map
                 .get(s_iri.as_str())
-                .map(|c| c.labels.clone())
+                .map(|c| c.labels.iter().map(|l| l.tagged()).collect())
                 .unwrap_or_default();
             let t_labels: Vec<String> = target_class_map
                 .get(t_iri.as_str())
-                .map(|c| c.labels.clone())
+                .map(|c| c.labels.iter().map(|l| l.tagged()).collect())
                 .unwrap_or_default();
             let s_parents = Self::extract_parents(&source_store, &s_iri);
             let t_parents = Self::extract_parents(target_ref, &t_iri);
@@ -925,7 +957,11 @@ fn jaccard_similarity(a: &[String], b: &[String]) -> f64 {
 #[derive(Debug, Clone)]
 pub struct ClassInfo {
     pub iri: String,
-    pub labels: Vec<String>,
+    /// Labels with their parsed language tags. Populated from rdfs:label /
+    /// skos:prefLabel / skos:altLabel (and OBO synonyms), filtered by the
+    /// active language policy. Falls back to a single language-neutral label
+    /// derived from the IRI local name when no policy-matching label exists.
+    pub labels: Vec<crate::language::Label>,
 }
 
 /// Extract local name from an IRI (after last # or /).
@@ -975,11 +1011,14 @@ mod tests {
     fn test_label_similarity() {
         let a = ClassInfo {
             iri: "http://ex.org/Dog".into(),
-            labels: vec!["Dog".into()],
+            labels: vec![crate::language::Label::new("Dog", None)],
         };
         let b = ClassInfo {
             iri: "http://other.org/Canine".into(),
-            labels: vec!["Dog".into(), "Canine".into()],
+            labels: vec![
+                crate::language::Label::new("Dog", None),
+                crate::language::Label::new("Canine", None),
+            ],
         };
         // Exact label match should give 1.0
         let sim = AlignmentEngine::label_similarity(&a, &b);
@@ -1117,14 +1156,47 @@ mod tests {
     fn test_label_similarity_camelcase() {
         let a = ClassInfo {
             iri: "http://ex.org/DomesticCat".into(),
-            labels: vec!["DomesticCat".into()],
+            labels: vec![crate::language::Label::new("DomesticCat", None)],
         };
         let b = ClassInfo {
             iri: "http://other.org/HouseCat".into(),
-            labels: vec!["Domestic Cat".into()],
+            labels: vec![crate::language::Label::new("Domestic Cat", None)],
         };
         let sim = AlignmentEngine::label_similarity(&a, &b);
         assert!(sim > 0.95, "CamelCase split should match: {}", sim);
+    }
+
+    #[test]
+    fn extract_classes_parses_language_tags_and_policy() {
+        let gs = GraphStore::new();
+        gs.load_content(
+            r#"
+                @prefix owl: <http://www.w3.org/2002/07/owl#> .
+                @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+                @prefix ex: <http://example.org/> .
+                ex:Dog a owl:Class ; rdfs:label "Dog"@en, "Chien"@fr, "Perro"@es .
+            "#,
+            RdfFormat::Turtle,
+        )
+        .unwrap();
+
+        // Multilingual policy (empty) keeps all three, each with its tag parsed
+        // off — no more `Dog"@en` mangling.
+        let all = AlignmentEngine::extract_classes(&gs, &[]);
+        let dog = all.iter().find(|c| c.iri.ends_with("Dog")).unwrap();
+        let texts: std::collections::HashSet<&str> =
+            dog.labels.iter().map(|l| l.text.as_str()).collect();
+        assert!(texts.contains("Dog"));
+        assert!(texts.contains("Chien"));
+        assert!(texts.contains("Perro"));
+        let chien = dog.labels.iter().find(|l| l.text == "Chien").unwrap();
+        assert_eq!(chien.lang.as_deref(), Some("fr"));
+
+        // English-only policy drops the fr/es labels.
+        let en = AlignmentEngine::extract_classes(&gs, &["en".to_string()]);
+        let dog_en = en.iter().find(|c| c.iri.ends_with("Dog")).unwrap();
+        let texts_en: Vec<&str> = dog_en.labels.iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(texts_en, vec!["Dog"]);
     }
 
     #[test]
