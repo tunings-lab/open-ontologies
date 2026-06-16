@@ -34,6 +34,40 @@ print(OntologyEngine.convert(ttl, "turtle", "ntriples"))
 
 See [examples/python_usage.py](examples/python_usage.py) for a runnable end-to-end script.
 
+### Version governance with KGCL
+
+```python
+from open_ontologies_lite import kgcl_diff
+
+cs = kgcl_diff(open("v1.ttl").read(), open("v2.ttl").read())
+print(cs.counts())     # {'node_creation': 1, 'node_rename': 1, ...}
+print(cs.to_kgcl())    # KGCL change records, one per line
+```
+
+`kgcl_diff` classifies the change between two ontology versions into KGCL records
+(node created/deleted, renamed, annotation changed, edge created/deleted). Pure
+structural comparison, no model. Also exposed as the `onto_kgcl_diff` MCP tool.
+
+### Alignment candidate generation with HNSW (optional `[align]` extra)
+
+```bash
+pip install "open-ontologies-lite[align]"
+```
+
+```python
+from open_ontologies_lite import AlignmentIndex
+
+idx = AlignmentIndex(dim=384)
+idx.add("flw:PC-BAK", vec_bakery)       # vectors come from YOUR embedder
+idx.add("FOODON:00001626", vec_foodon)
+idx.build()
+idx.query(vec_query, k=5)               # -> [Candidate(id, score), ...]
+```
+
+MCP-native by design: the package owns the HNSW index, **you supply the vectors**.
+Lite never calls an embedding model; bring vectors from your orchestrator and let it
+adjudicate the candidates.
+
 ## Use as an MCP server
 
 ```bash
@@ -63,6 +97,7 @@ Register it with any MCP client (e.g. Claude):
 | `onto_save` | Serialize the store to a file |
 | `onto_convert` | Convert between Turtle / N-Triples / N-Quads / TriG / RDF-XML / N3 / JSON-LD |
 | `onto_diff` | Triple-level diff between two ontologies |
+| `onto_kgcl_diff` | KGCL change records between two versions (governance / change logs) |
 | `onto_lint` | Missing labels, domains, ranges |
 
 ## Relationship to the Rust engine
