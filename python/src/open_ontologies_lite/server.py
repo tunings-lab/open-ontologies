@@ -86,6 +86,20 @@ def onto_lint() -> dict:
     return _engine.lint()
 
 
+@mcp.tool()
+def onto_kgcl_diff(data_a: str, data_b: str, format: str = "turtle") -> dict:
+    """Classify the change from version A to B as KGCL change records.
+
+    Returns structured changes (node_creation/deletion, node_rename,
+    node_annotation_change, edge_creation/deletion), their counts, and a KGCL
+    text rendering. Use for ontology version governance and change logs.
+    """
+    from .kgcl import kgcl_diff
+
+    cs = kgcl_diff(data_a, data_b, format)
+    return {"changes": cs.changes, "counts": cs.counts(), "kgcl": cs.to_kgcl()}
+
+
 def main() -> None:
     import argparse
 
