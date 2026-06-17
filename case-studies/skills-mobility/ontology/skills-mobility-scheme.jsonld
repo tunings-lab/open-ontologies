@@ -1,0 +1,240 @@
+{
+  "@context": {
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "dct": "http://purl.org/dc/terms/",
+    "prov": "http://www.w3.org/ns/prov#",
+    "sm": "https://gov.tesseract.academy/ns/skills-mobility#",
+    "prefLabel": "skos:prefLabel",
+    "definition": "skos:definition",
+    "broader": {
+      "@id": "skos:broader",
+      "@type": "@id"
+    },
+    "notation": "skos:notation",
+    "wasDerivedFrom": {
+      "@id": "prov:wasDerivedFrom",
+      "@type": "@id"
+    }
+  },
+  "@graph": [
+    {
+      "@id": "sm:scheme",
+      "@type": "skos:ConceptScheme",
+      "dct:title": "PIAAC educational and skills mobility variable scheme"
+    },
+    {
+      "@id": "sm:parental-edu",
+      "@type": "skos:Concept",
+      "prefLabel": "parental_edu",
+      "definition": "Origin: highest education attained by either parent, 3 bands (the social-origin measure).",
+      "notation": ["PARED", "PAREDC2"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:own-edu6",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu6",
+      "definition": "Destination: respondent's own highest qualification, 6-category scheme collapsed to 3 bands.",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:numeracy-pv",
+      "@type": "skos:Concept",
+      "prefLabel": "numeracy_pv",
+      "definition": "Destination: numeracy proficiency (0-500), 10 plausible values.",
+      "notation": "PVNUM1:10",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:literacy-pv",
+      "@type": "skos:Concept",
+      "prefLabel": "literacy_pv",
+      "definition": "Destination: literacy proficiency (0-500), 10 plausible values.",
+      "notation": "PVLIT1:10",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:occ-isco1",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_isco1",
+      "definition": "Destination: occupation, ISCO-08 major group (1-digit).",
+      "notation": "ISCO1C",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:occ-skill",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_skill",
+      "definition": "Destination: occupational skill level, 4 bands.",
+      "notation": "ISCOSKIL4",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:earn-hr-decile",
+      "@type": "skos:Concept",
+      "prefLabel": "earn_hr_decile",
+      "definition": "Destination: gross hourly earnings, national decile (1 = lowest, 10 = highest).",
+      "notation": ["EARNHRDCL", "EARNHRDCLC2"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:sex",
+      "@type": "skos:Concept",
+      "prefLabel": "sex",
+      "definition": "Analytical control: sex.",
+      "notation": "GENDER_R",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:age10",
+      "@type": "skos:Concept",
+      "prefLabel": "age10",
+      "definition": "Analytical control: age band (10-year).",
+      "notation": "AGEG10LFS",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:region-tl2",
+      "@type": "skos:Concept",
+      "prefLabel": "region_tl2",
+      "definition": "Analytical control / breakdown: OECD TL2 region.",
+      "notation": "REG_TL2",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:final-weight",
+      "@type": "skos:Concept",
+      "prefLabel": "final_weight",
+      "definition": "Final sample weight (point estimates).",
+      "notation": "SPFWT0",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"]
+    },
+    {
+      "@id": "sm:origin-1",
+      "@type": "skos:Concept",
+      "prefLabel": "origin = Low (code 1)",
+      "definition": "Neither parent attained upper secondary",
+      "notation": ["PARED", "PAREDC2"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:parental-edu"
+    },
+    {
+      "@id": "sm:origin-2",
+      "@type": "skos:Concept",
+      "prefLabel": "origin = Medium (code 2)",
+      "definition": "At least one parent upper secondary / post-secondary non-tertiary",
+      "notation": ["PARED", "PAREDC2"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:parental-edu"
+    },
+    {
+      "@id": "sm:origin-3",
+      "@type": "skos:Concept",
+      "prefLabel": "origin = High (code 3)",
+      "definition": "At least one parent attained tertiary",
+      "notation": ["PARED", "PAREDC2"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:parental-edu"
+    },
+    {
+      "@id": "sm:own-edu-1",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = Low (code 1)",
+      "definition": "Lower secondary or less (ISCED 1,2,3C short)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-2",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = Medium (code 2)",
+      "definition": "Upper secondary (ISCED 3A-B, C long)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-3",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = Medium (code 3)",
+      "definition": "Post-secondary non-tertiary (ISCED 4)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-4",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = High (code 4)",
+      "definition": "Tertiary professional (ISCED 5B)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-5",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = High (code 5)",
+      "definition": "Tertiary bachelor (ISCED 5A)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-6",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = High (code 6)",
+      "definition": "Tertiary master/research (ISCED 5A/6)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:own-edu-7",
+      "@type": "skos:Concept",
+      "prefLabel": "own_edu = High (code 7)",
+      "definition": "Tertiary bachelor/master/research grouped (ISCED 5A/6)",
+      "notation": ["EDCAT6", "EDCAT6_TC1"],
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:own-edu6"
+    },
+    {
+      "@id": "sm:occ-skill-rank-1",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_skill_rank = 4 (code 1)",
+      "definition": "Skilled occupations",
+      "notation": "ISCOSKIL4",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:occ-skill"
+    },
+    {
+      "@id": "sm:occ-skill-rank-2",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_skill_rank = 3 (code 2)",
+      "definition": "Semi-skilled white-collar",
+      "notation": "ISCOSKIL4",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:occ-skill"
+    },
+    {
+      "@id": "sm:occ-skill-rank-3",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_skill_rank = 2 (code 3)",
+      "definition": "Semi-skilled blue-collar",
+      "notation": "ISCOSKIL4",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:occ-skill"
+    },
+    {
+      "@id": "sm:occ-skill-rank-4",
+      "@type": "skos:Concept",
+      "prefLabel": "occ_skill_rank = 1 (code 4)",
+      "definition": "Elementary occupations",
+      "notation": "ISCOSKIL4",
+      "wasDerivedFrom": ["https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv", "https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv"],
+      "broader": "sm:occ-skill"
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sm:   <https://gov.tesseract.academy/ns/skills-mobility#> .
+
+sm:scheme a skos:ConceptScheme ;
+  dct:title "PIAAC educational and skills mobility variable scheme" ;
+  dct:description "Coded harmonisation of the OECD PIAAC public-use variables used in the Tesseract Academy intergenerational educational and skills mobility case study, across Cycle 1 (2012) and Cycle 2 (2023)." ;
+  dct:source <https://webfs.oecd.org/piaac> ;
+  dct:created "2026-06-17"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+sm:parental-edu a skos:Concept ;
+  skos:prefLabel "parental_edu" ;
+  skos:definition "Origin: highest education attained by either parent, 3 bands (the social-origin measure)." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "PARED" ;  # PIAAC 2012 source
+  skos:notation "PAREDC2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu6 a skos:Concept ;
+  skos:prefLabel "own_edu6" ;
+  skos:definition "Destination: respondent's own highest qualification, 6-category scheme collapsed to 3 bands." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:numeracy-pv a skos:Concept ;
+  skos:prefLabel "numeracy_pv" ;
+  skos:definition "Destination: numeracy proficiency (0-500), 10 plausible values." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "PVNUM1:10" ;  # PIAAC 2012 source
+  skos:notation "PVNUM1:10" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:literacy-pv a skos:Concept ;
+  skos:prefLabel "literacy_pv" ;
+  skos:definition "Destination: literacy proficiency (0-500), 10 plausible values." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "PVLIT1:10" ;  # PIAAC 2012 source
+  skos:notation "PVLIT1:10" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-isco1 a skos:Concept ;
+  skos:prefLabel "occ_isco1" ;
+  skos:definition "Destination: occupation, ISCO-08 major group (1-digit)." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "ISCO1C" ;  # PIAAC 2012 source
+  skos:notation "ISCO1C" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-skill a skos:Concept ;
+  skos:prefLabel "occ_skill" ;
+  skos:definition "Destination: occupational skill level, 4 bands." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2012 source
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:earn-hr-decile a skos:Concept ;
+  skos:prefLabel "earn_hr_decile" ;
+  skos:definition "Destination: gross hourly earnings, national decile (1 = lowest, 10 = highest)." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "EARNHRDCL" ;  # PIAAC 2012 source
+  skos:notation "EARNHRDCLC2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:sex a skos:Concept ;
+  skos:prefLabel "sex" ;
+  skos:definition "Analytical control: sex." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "GENDER_R" ;  # PIAAC 2012 source
+  skos:notation "GENDER_R" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:age10 a skos:Concept ;
+  skos:prefLabel "age10" ;
+  skos:definition "Analytical control: age band (10-year)." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "AGEG10LFS" ;  # PIAAC 2012 source
+  skos:notation "AGEG10LFS" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:region-tl2 a skos:Concept ;
+  skos:prefLabel "region_tl2" ;
+  skos:definition "Analytical control / breakdown: OECD TL2 region." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "REG_TL2" ;  # PIAAC 2012 source
+  skos:notation "REG_TL2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:final-weight a skos:Concept ;
+  skos:prefLabel "final_weight" ;
+  skos:definition "Final sample weight (point estimates)." ;
+  skos:inScheme sm:scheme ;
+  skos:topConceptOf sm:scheme ;
+  skos:notation "SPFWT0" ;  # PIAAC 2012 source
+  skos:notation "SPFWT0" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:origin-1 a skos:Concept ;
+  skos:prefLabel "origin = Low (code 1)" ;
+  skos:definition "Neither parent attained upper secondary" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:parental-edu ;
+  skos:notation "PARED" ;  # PIAAC 2012 source
+  skos:notation "PAREDC2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:origin-2 a skos:Concept ;
+  skos:prefLabel "origin = Medium (code 2)" ;
+  skos:definition "At least one parent upper secondary / post-secondary non-tertiary" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:parental-edu ;
+  skos:notation "PARED" ;  # PIAAC 2012 source
+  skos:notation "PAREDC2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:origin-3 a skos:Concept ;
+  skos:prefLabel "origin = High (code 3)" ;
+  skos:definition "At least one parent attained tertiary" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:parental-edu ;
+  skos:notation "PARED" ;  # PIAAC 2012 source
+  skos:notation "PAREDC2" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-1 a skos:Concept ;
+  skos:prefLabel "own_edu = Low (code 1)" ;
+  skos:definition "Lower secondary or less (ISCED 1,2,3C short)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-2 a skos:Concept ;
+  skos:prefLabel "own_edu = Medium (code 2)" ;
+  skos:definition "Upper secondary (ISCED 3A-B, C long)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-3 a skos:Concept ;
+  skos:prefLabel "own_edu = Medium (code 3)" ;
+  skos:definition "Post-secondary non-tertiary (ISCED 4)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-4 a skos:Concept ;
+  skos:prefLabel "own_edu = High (code 4)" ;
+  skos:definition "Tertiary professional (ISCED 5B)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-5 a skos:Concept ;
+  skos:prefLabel "own_edu = High (code 5)" ;
+  skos:definition "Tertiary bachelor (ISCED 5A)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-6 a skos:Concept ;
+  skos:prefLabel "own_edu = High (code 6)" ;
+  skos:definition "Tertiary master/research (ISCED 5A/6)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:own-edu-7 a skos:Concept ;
+  skos:prefLabel "own_edu = High (code 7)" ;
+  skos:definition "Tertiary bachelor/master/research grouped (ISCED 5A/6)" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:own-edu6 ;
+  skos:notation "EDCAT6" ;  # PIAAC 2012 source
+  skos:notation "EDCAT6_TC1" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-skill-rank-1 a skos:Concept ;
+  skos:prefLabel "occ_skill_rank = 4 (code 1)" ;
+  skos:definition "Skilled occupations" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:occ-skill ;
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2012 source
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-skill-rank-2 a skos:Concept ;
+  skos:prefLabel "occ_skill_rank = 3 (code 2)" ;
+  skos:definition "Semi-skilled white-collar" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:occ-skill ;
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2012 source
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-skill-rank-3 a skos:Concept ;
+  skos:prefLabel "occ_skill_rank = 2 (code 3)" ;
+  skos:definition "Semi-skilled blue-collar" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:occ-skill ;
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2012 source
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+
+sm:occ-skill-rank-4 a skos:Concept ;
+  skos:prefLabel "occ_skill_rank = 1 (code 4)" ;
+  skos:definition "Elementary occupations" ;
+  skos:inScheme sm:scheme ;
+  skos:broader sm:occ-skill ;
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2012 source
+  skos:notation "ISCOSKIL4" ;  # PIAAC 2023 source
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy1-puf-data/CSV/prggbrp1.csv> ;
+  prov:wasDerivedFrom <https://webfs.oecd.org/piaac/cy2-puf-data/CSV/prggbrp2.csv> .
+

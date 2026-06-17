@@ -1,0 +1,11 @@
+# Raw PIAAC public-use files are regenerable via R/01_download.R; do not commit
+# (32-46 MB each). The repository root .gitignore already excludes data/, this
+# is an explicit local guard.
+data/raw/
+data/derived/
+*.sav
+renv/library/
+.Rproj.user/
+.Rhistory
+.venv/
+preview/

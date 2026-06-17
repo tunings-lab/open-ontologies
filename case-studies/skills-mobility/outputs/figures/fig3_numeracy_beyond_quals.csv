@@ -1,0 +1,5 @@
+"outcome","model","r2"
+"Hourly earnings (decile)","Qualifications + age + sex",0.305417337916628
+"Hourly earnings (decile)","... plus numeracy",0.367134881346988
+"Professional / managerial job","Qualifications + age + sex",0.160188181484194
+"Professional / managerial job","... plus numeracy",0.206872661187028
