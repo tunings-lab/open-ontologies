@@ -83,4 +83,4 @@ The variable scheme is the part most likely to be reused. Any analyst working ac
 
 The full method, including the plausible-value and replicate-weight handling, the validation against published OECD figures, and the limitations, is in the [technical note](technical-note.md). The pipeline runs with four commands and regenerates every number and figure in this case study from the raw open files.
 
-*Source: OECD Programme for the International Assessment of Adult Competencies (PIAAC), public-use files, England, Cycle 1 (2012) and Cycle 2 (2023). Analysis by The Tesseract Academy, June 2026.*
+*Source: OECD Programme for the International Assessment of Adult Competencies (PIAAC), public-use files, England, Cycle 1 (2012) and Cycle 2 (2023). Analysis by The Tesseract Academy, 2026.*

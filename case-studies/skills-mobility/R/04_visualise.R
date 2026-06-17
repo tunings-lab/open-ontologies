@@ -29,10 +29,10 @@ write.csv(g1, file.path(OUT_FIG, "fig1_gradient.csv"), row.names = FALSE)
 p1 <- ggplot(g1, aes(origin, estimate, fill = origin)) +
   geom_col(width = .7) +
   geom_errorbar(aes(ymin = ci_lo, ymax = ci_hi), width = .2, linewidth = .6) +
-  geom_text(aes(label = round(estimate)), vjust = -0.9, size = 4.4) +
+  geom_text(aes(y = ci_hi, label = round(estimate)), vjust = -0.8, size = 4.4) +
   facet_wrap(~cycle) +
   scale_fill_manual(values = ORIGIN_COL, guide = "none") +
-  coord_cartesian(ylim = c(200, 310)) +
+  coord_cartesian(ylim = c(200, 318)) +
   labs(title = "Adults' numeracy rises steeply with their parents' education",
        subtitle = "Mean PIAAC numeracy score (0-500) by parental education, England",
        x = "Parental education (origin)", y = "Mean numeracy score",
@@ -100,10 +100,10 @@ write.csv(g4, file.path(OUT_FIG, "fig4_tertiary_by_origin.csv"), row.names = FAL
 p4 <- ggplot(g4, aes(origin, pct/100, fill = origin)) +
   geom_col(width = .7) +
   geom_errorbar(aes(ymin = ci_lo/100, ymax = ci_hi/100), width = .2, linewidth = .6) +
-  geom_text(aes(label = percent(pct/100, accuracy = 1)), vjust = -0.9, size = 4.2) +
+  geom_text(aes(y = ci_hi/100, label = percent(pct/100, accuracy = 1)), vjust = -0.7, size = 4.2) +
   facet_wrap(~cycle) +
   scale_fill_manual(values = ORIGIN_COL, guide = "none") +
-  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, .8)) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, .85)) +
   labs(title = "Reaching a degree still depends heavily on where you started",
        subtitle = "Share of adults attaining a tertiary qualification, by parental education, England",
        x = "Parental education (origin)", y = "Attained tertiary qualification",

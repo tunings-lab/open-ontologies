@@ -59,4 +59,4 @@ Rscript ontology/build_scheme.R
   official OECD value label. Coverage report records 100% provenance.
 
 Source: OECD Survey of Adult Skills (PIAAC), England, 2012 and 2023. Analysis by
-The Tesseract Academy, June 2026.
+The Tesseract Academy, 2026.
