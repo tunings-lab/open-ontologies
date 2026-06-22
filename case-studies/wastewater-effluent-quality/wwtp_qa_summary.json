@@ -1,0 +1,71 @@
+{
+  "n": 1382,
+  "period": [
+    "2014-01-01",
+    "2019-06-27"
+  ],
+  "params": {
+    "Am (Ammonia, mg/L)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 0,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 3,
+      "drift": 3.0
+    },
+    "BOD (mg/L)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 1,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 15,
+      "drift": -40.0
+    },
+    "COD (mg/L)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 1,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 6,
+      "drift": 115.0
+    },
+    "TN (Total Nitrogen, mg/L)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 0,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 25,
+      "drift": 1.2889999999999944
+    },
+    "Avg inflow (ML/d)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 0,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 34,
+      "drift": 1.0580000000000003
+    },
+    "Avg outflow (ML/d)": {
+      "n": 1382,
+      "miss": 0,
+      "completeness": 100.0,
+      "stuck": 2,
+      "oor": 0,
+      "zeros": 0,
+      "spikes": 0,
+      "drift": 0.923
+    }
+  },
+  "cod_lt_bod_violations": 0,
+  "bod_over_cod_ratio_bad": 0
+}

@@ -1,0 +1,47 @@
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix eff:  <http://example.org/effluent/> .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Six effluent observations: three valid, three carrying a planted fault.
+# Values are representative of the Melbourne full-scale WWTP open dataset analysed
+# in this case study. The SHACL shapes in data-quality-shapes.ttl must PASS the
+# valid records and FAIL each faulty one on the named rule.
+# ─────────────────────────────────────────────────────────────────────────────
+
+eff:works_alpha a eff:TreatmentWorks .
+
+# ── obs_01: clean record (passes all rules)
+eff:obs_01 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-01"^^xsd:date ;
+    eff:ammonia 27.0 ; eff:bod 365.0 ; eff:cod 730.0 ; eff:totalN 60.4 ;
+    eff:inflow 2.589 ; eff:outflow 2.941 ; eff:assurance eff:Checked .
+
+# ── obs_02: clean record
+eff:obs_02 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-02"^^xsd:date ;
+    eff:ammonia 25.0 ; eff:bod 370.0 ; eff:cod 740.0 ; eff:totalN 60.0 ;
+    eff:inflow 2.961 ; eff:outflow 2.936 ; eff:assurance eff:Checked .
+
+# ── obs_03: clean record
+eff:obs_03 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-03"^^xsd:date ;
+    eff:ammonia 31.0 ; eff:bod 360.0 ; eff:cod 745.0 ; eff:totalN 58.0 ;
+    eff:inflow 3.10 ; eff:outflow 3.05 ; eff:assurance eff:Checked .
+
+# ── obs_04: FAULT — COD (300) < BOD (365). Physically impossible (violates R7).
+eff:obs_04 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-04"^^xsd:date ;
+    eff:ammonia 26.0 ; eff:bod 365.0 ; eff:cod 300.0 ; eff:totalN 59.0 ;
+    eff:inflow 2.80 ; eff:outflow 2.79 ; eff:assurance eff:Unchecked .
+
+# ── obs_05: FAULT — ammonia 250 mg/L out of plausibility band (violates R2).
+eff:obs_05 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-05"^^xsd:date ;
+    eff:ammonia 250.0 ; eff:bod 355.0 ; eff:cod 720.0 ; eff:totalN 61.0 ;
+    eff:inflow 2.70 ; eff:outflow 2.71 ; eff:assurance eff:Suspect .
+
+# ── obs_06: FAULT — outflow 6.0 vs inflow 2.6, gross meter mismatch (violates R8).
+eff:obs_06 a eff:EffluentObservation ;
+    eff:atWorks eff:works_alpha ; eff:observedOn "2014-01-06"^^xsd:date ;
+    eff:ammonia 28.0 ; eff:bod 362.0 ; eff:cod 735.0 ; eff:totalN 60.0 ;
+    eff:inflow 2.60 ; eff:outflow 6.00 ; eff:assurance eff:Unchecked .

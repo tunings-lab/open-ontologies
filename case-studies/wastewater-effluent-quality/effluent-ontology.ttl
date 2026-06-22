@@ -1,0 +1,40 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix eff:  <http://example.org/effluent/> .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Effluent monitoring ontology (TBox).
+# Models a final-effluent / wastewater continuous-monitoring observation using
+# the ISO 19156 / W3C SOSA "Observation" pattern: one observation carries one
+# value per determinand, with provenance for the assurance state.
+# Determinands mirror the regulated wastewater quality suite (ammonia, BOD, COD,
+# total nitrogen) plus flow, as found on full-scale works and s.82 monitors.
+# ─────────────────────────────────────────────────────────────────────────────
+
+eff:TreatmentWorks a owl:Class ;
+    rdfs:label "Wastewater treatment works" .
+
+eff:EffluentObservation a owl:Class ;
+    rdfs:subClassOf sosa:Observation ;
+    rdfs:label "Final-effluent monitoring observation (one day / one interval)" .
+
+eff:AssuranceState a owl:Class ;
+    rdfs:label "Quality-assurance state of a reading (Checked / Unchecked / Suspect)" .
+
+eff:atWorks       a owl:ObjectProperty ; rdfs:domain eff:EffluentObservation ; rdfs:range eff:TreatmentWorks .
+eff:assurance     a owl:ObjectProperty ; rdfs:domain eff:EffluentObservation ; rdfs:range eff:AssuranceState .
+
+# Determinand values (mg/L unless noted); flows in ML/day.
+eff:ammonia    a owl:DatatypeProperty ; rdfs:label "Ammonia (mg/L)" ;          rdfs:range xsd:decimal .
+eff:bod        a owl:DatatypeProperty ; rdfs:label "BOD (mg/L)" ;              rdfs:range xsd:decimal .
+eff:cod        a owl:DatatypeProperty ; rdfs:label "COD (mg/L)" ;              rdfs:range xsd:decimal .
+eff:totalN     a owl:DatatypeProperty ; rdfs:label "Total nitrogen (mg/L)" ;  rdfs:range xsd:decimal .
+eff:inflow     a owl:DatatypeProperty ; rdfs:label "Average inflow (ML/d)" ;  rdfs:range xsd:decimal .
+eff:outflow    a owl:DatatypeProperty ; rdfs:label "Average outflow (ML/d)" ; rdfs:range xsd:decimal .
+eff:observedOn a owl:DatatypeProperty ; rdfs:label "Observation date" ;       rdfs:range xsd:date .
+
+eff:Checked   a eff:AssuranceState .
+eff:Unchecked a eff:AssuranceState .
+eff:Suspect   a eff:AssuranceState .

@@ -1,0 +1,56 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix eff:  <http://example.org/effluent/> .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data-quality SHACL shapes for effluent monitoring observations.
+# These are the machine-checkable QA rules a continuous-monitoring dataset must
+# pass before it can be trusted for regulatory intelligence. Pure validation
+# primitives: no model, no training data. Add a rule, not a retrain.
+# ─────────────────────────────────────────────────────────────────────────────
+
+eff:EffluentObservationShape a sh:NodeShape ;
+    sh:targetClass eff:EffluentObservation ;
+
+    # R1: observation date required, exactly one.
+    sh:property [ sh:path eff:observedOn ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:date ;
+                  sh:message "R1: an observation must carry exactly one date." ] ;
+
+    # R2-R5: each regulated determinand, where present, must be a non-negative decimal
+    # within a physical-plausibility band.
+    sh:property [ sh:path eff:ammonia ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 100 ;
+                  sh:message "R2: ammonia must be 0-100 mg/L." ] ;
+    sh:property [ sh:path eff:bod ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 1000 ;
+                  sh:message "R3: BOD must be 0-1000 mg/L." ] ;
+    sh:property [ sh:path eff:cod ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 2000 ;
+                  sh:message "R4: COD must be 0-2000 mg/L." ] ;
+    sh:property [ sh:path eff:totalN ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 300 ;
+                  sh:message "R5: total nitrogen must be 0-300 mg/L." ] ;
+
+    # R6: at least one regulated determinand must be present (not an empty record).
+    sh:or (
+      [ sh:path eff:ammonia ; sh:minCount 1 ]
+      [ sh:path eff:bod ; sh:minCount 1 ]
+      [ sh:path eff:cod ; sh:minCount 1 ]
+      [ sh:path eff:totalN ; sh:minCount 1 ]
+    ) ;
+
+    # R7: DOMAIN-AWARE CROSS-PARAMETER RULE. Chemical Oxygen Demand measures all
+    # oxidisable matter; Biochemical Oxygen Demand measures only the biodegradable
+    # fraction. By definition COD >= BOD always. A record where COD < BOD is
+    # physically impossible and signals a sensor, lab or transcription fault.
+    sh:sparql [ sh:message "R7: COD must be >= BOD (physically impossible otherwise)." ;
+                sh:prefixes eff: ;
+                sh:select """SELECT $this WHERE {
+                    $this <http://example.org/effluent/cod> ?cod ;
+                          <http://example.org/effluent/bod> ?bod .
+                    FILTER(?cod < ?bod) }""" ] ;
+
+    # R8: flow conservation sanity — outflow should not exceed inflow by more than
+    # a tolerance (rainfall/infiltration aside); gross excess flags a meter fault.
+    sh:sparql [ sh:message "R8: average outflow exceeds inflow by more than 50% (meter fault?)." ;
+                sh:prefixes eff: ;
+                sh:select """SELECT $this WHERE {
+                    $this <http://example.org/effluent/inflow> ?in ;
+                          <http://example.org/effluent/outflow> ?out .
+                    FILTER(?out > 1.5 * ?in) }""" ] .
