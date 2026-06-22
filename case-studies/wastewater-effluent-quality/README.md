@@ -88,4 +88,4 @@ anomalies are merely unusual and which are impossible. That separation is what m
 the verdict auditable, and auditable data quality is exactly what a regulator needs
 before continuous monitoring can carry regulatory weight.
 
-*Built by [Tesseract Academy](https://gov.tesseract.academy). Data CC BY-SA 4.0.*
+
