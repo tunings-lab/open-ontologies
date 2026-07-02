@@ -33,7 +33,7 @@ rayon = "1.10"
 csv = "1"
 quick-xml = { version = "0.37", features = ["serialize"] }
 serde_yaml = "0.9"
-calamine = "0.26"
+calamine = "0.30"
 arrow = { version = "54", default-features = false, features = ["csv", "json"] }
 parquet = { version = "54", default-features = false, features = ["arrow"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres"], optional = true }

@@ -2454,8 +2454,8 @@ impl OpenOntologiesServer {
 
 // ─── ServerHandler ──────────────────────────────────────────────────────────
 
-#[tool_handler]
-#[prompt_handler]
+#[tool_handler(router = self.tool_router)]
+#[prompt_handler(router = self.prompt_router)]
 impl ServerHandler for OpenOntologiesServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().enable_prompts().build())

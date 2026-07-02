@@ -3,4 +3,12 @@ ignore = [
     # rand unsoundness with custom logger — transitive dep from tokenizers, rmcp, tract-onnx
     # We don't use rand::rng() directly or custom loggers. Waiting on upstream fixes.
     "RUSTSEC-2026-0097",
+    # quick-xml < 0.41 advisories. Our direct quick-xml is bumped to 0.41, but a
+    # 0.37.x copy is still pulled transitively by oxigraph 0.5.9 (latest) via
+    # oxrdfxml / sparesults. There is no oxigraph release on 0.41 yet, so this is
+    # unfixable by version bump until upstream updates. We do not parse untrusted
+    # XML through the oxigraph RDF/XML path in a way that exposes this. Revisit on
+    # the next oxigraph release.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]

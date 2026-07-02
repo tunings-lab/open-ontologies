@@ -954,11 +954,12 @@ async fn async_main() -> anyhow::Result<()> {
             };
 
             let ct = CancellationToken::new();
-            let http_config = StreamableHttpServerConfig {
-                stateful_mode: cfg.http.stateful_mode,
-                cancellation_token: ct.clone(),
-                ..Default::default()
-            };
+            // rmcp >=1.4 marks StreamableHttpServerConfig #[non_exhaustive], so it
+            // can no longer be built with a struct literal from this crate. Start
+            // from Default and set the public fields we care about.
+            let mut http_config = StreamableHttpServerConfig::default();
+            http_config.stateful_mode = cfg.http.stateful_mode;
+            http_config.cancellation_token = ct.clone();
 
             let shared_graph_for_service = shared_graph.clone();
             let gw_for_service = governance_webhook.clone();
