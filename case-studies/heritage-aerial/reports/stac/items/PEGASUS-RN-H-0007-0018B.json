@@ -1,0 +1,91 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "PEGASUS-RN-H-0007-0018B",
+  "collection": "ncap-aerial",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          113.945127,
+          22.388403
+        ],
+        [
+          113.967993,
+          22.39213
+        ],
+        [
+          113.972001,
+          22.371108
+        ],
+        [
+          113.949135,
+          22.36738
+        ],
+        [
+          113.945127,
+          22.388403
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    113.945127,
+    22.36738,
+    113.972001,
+    22.39213
+  ],
+  "properties": {
+    "datetime": "1924-11-12T00:00:00Z",
+    "naph:tier": "Baseline",
+    "naph:sortie": "PEGASUS/RN/H/0007",
+    "naph:perspective": "vertical",
+    "naph:camera": "V",
+    "naph:identifier": "https://w3id.org/naph/photo/PEGASUS-RN-H-0007-0018B",
+    "naph:source": "https://airphotofinder.ncap.org/image/797834",
+    "title": "PEGASUS/RN/H/0007 frame 0018B",
+    "license": "other"
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "./PEGASUS-RN-H-0007-0018B.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "collection",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "catalogue": {
+      "href": "https://airphotofinder.ncap.org/image/797834",
+      "title": "Air Photo Finder catalogue record",
+      "type": "text/html",
+      "roles": [
+        "overview",
+        "metadata"
+      ]
+    },
+    "image": {
+      "href": "https://airphotofinder.ncap.org/image/797834",
+      "title": "Digital surrogate (NCAP access copy)",
+      "type": "image/tiff",
+      "roles": [
+        "data"
+      ]
+    }
+  }
+}

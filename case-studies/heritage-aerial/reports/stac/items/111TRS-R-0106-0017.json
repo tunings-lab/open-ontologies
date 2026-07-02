@@ -1,0 +1,91 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "111TRS-R-0106-0017",
+  "collection": "ncap-aerial",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          2.237123,
+          48.171172
+        ],
+        [
+          2.255114,
+          48.164912
+        ],
+        [
+          2.241258,
+          48.154512
+        ],
+        [
+          2.232263,
+          48.157643
+        ],
+        [
+          2.237123,
+          48.171172
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    2.232263,
+    48.154512,
+    2.255114,
+    48.171172
+  ],
+  "properties": {
+    "datetime": "1946-01-03T00:00:00Z",
+    "naph:tier": "Baseline",
+    "naph:sortie": "111TRS/R/0106",
+    "naph:perspective": "oblique",
+    "naph:camera": "O",
+    "naph:identifier": "https://w3id.org/naph/photo/111TRS-R-0106-0017",
+    "naph:source": "https://airphotofinder.ncap.org/image/75971",
+    "title": "111TRS/R/0106 frame 0017",
+    "license": "other"
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "./111TRS-R-0106-0017.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "collection",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "catalogue": {
+      "href": "https://airphotofinder.ncap.org/image/75971",
+      "title": "Air Photo Finder catalogue record",
+      "type": "text/html",
+      "roles": [
+        "overview",
+        "metadata"
+      ]
+    },
+    "image": {
+      "href": "https://airphotofinder.ncap.org/image/75971",
+      "title": "Digital surrogate (NCAP access copy)",
+      "type": "image/tiff",
+      "roles": [
+        "data"
+      ]
+    }
+  }
+}

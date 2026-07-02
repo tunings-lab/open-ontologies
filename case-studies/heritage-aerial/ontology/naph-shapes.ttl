@@ -40,8 +40,17 @@ naph:BaselineShape a sh:NodeShape ;
         sh:path naph:capturedOn ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
-        sh:datatype xsd:date ;
-        sh:message "Capture date must be a single ISO 8601 date — no free-text."
+        # Date-precision policy (ADR-0009): a capture date may be recorded at
+        # day (xsd:date), month (xsd:gYearMonth) or year (xsd:gYear) precision.
+        # All three are single, machine-readable ISO 8601 values — no free-text.
+        # Real NCAP holdings include year-only frames, so the shape must admit
+        # all three precisions rather than day-only.
+        sh:or (
+            [ sh:datatype xsd:date ]
+            [ sh:datatype xsd:gYearMonth ]
+            [ sh:datatype xsd:gYear ]
+        ) ;
+        sh:message "Capture date must be a single ISO 8601 value at day, month, or year precision (xsd:date / xsd:gYearMonth / xsd:gYear) — no free-text."
     ] ;
 
     sh:property [

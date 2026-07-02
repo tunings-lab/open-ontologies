@@ -1,0 +1,91 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "USAAF-CAR-0019-M-0539-0062",
+  "collection": "ncap-aerial",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -63.085676,
+          18.235626
+        ],
+        [
+          -63.038543,
+          18.259909
+        ],
+        [
+          -63.013129,
+          18.215411
+        ],
+        [
+          -63.060264,
+          18.191125
+        ],
+        [
+          -63.085676,
+          18.235626
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -63.085676,
+    18.191125,
+    -63.013129,
+    18.259909
+  ],
+  "properties": {
+    "datetime": "1946-01-02T00:00:00Z",
+    "naph:tier": "Baseline",
+    "naph:sortie": "USAAF/CAR/0019/M/0539",
+    "naph:perspective": "vertical",
+    "naph:camera": "V",
+    "naph:identifier": "https://w3id.org/naph/photo/USAAF-CAR-0019-M-0539-0062",
+    "naph:source": "https://airphotofinder.ncap.org/image/784732",
+    "title": "USAAF/CAR/0019/M/0539 frame 0062",
+    "license": "other"
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "./USAAF-CAR-0019-M-0539-0062.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "collection",
+      "href": "../../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "catalogue": {
+      "href": "https://airphotofinder.ncap.org/image/784732",
+      "title": "Air Photo Finder catalogue record",
+      "type": "text/html",
+      "roles": [
+        "overview",
+        "metadata"
+      ]
+    },
+    "image": {
+      "href": "https://airphotofinder.ncap.org/image/784732",
+      "title": "Digital surrogate (NCAP access copy)",
+      "type": "image/tiff",
+      "roles": [
+        "data"
+      ]
+    }
+  }
+}

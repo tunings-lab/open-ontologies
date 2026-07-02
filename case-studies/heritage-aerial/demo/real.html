@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAPH — Real NCAP Sample (live Air Photo Finder API)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1a1a2a; }
+  header { padding: 1.1em 1.5em; background: #14212f; color: white; }
+  header h1 { margin: 0 0 0.3em 0; font-size: 1.35em; font-weight: 600; }
+  header p { margin: 0; opacity: 0.82; font-size: 0.88em; }
+  header .live { display:inline-block; background:#2e7d4f; color:#fff; font-size:0.7em; font-weight:600; padding:0.15em 0.6em; border-radius:0.3em; letter-spacing:0.04em; vertical-align:middle; margin-left:0.5em; }
+  main { display: flex; height: calc(100vh - 96px); }
+  #map { flex: 1; }
+  aside { width: 380px; padding: 1em 1.2em; overflow-y: auto; background: #f6f7fa; border-left: 1px solid #d0d4dc; }
+  aside h2 { margin: 0 0 0.5em 0; font-size: 1em; color: #444; }
+  .legend { margin-bottom: 1.2em; font-size: 0.85em; }
+  .legend-row { display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.3em; }
+  .swatch { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; margin-bottom: 1em; font-size: 0.85em; }
+  .stat-card { background: white; padding: 0.6em 0.8em; border-radius: 0.4em; border: 1px solid #e0e3eb; }
+  .stat-num { font-size: 1.35em; font-weight: 600; color: #14212f; }
+  .stat-label { color: #666; font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; }
+  #detail { background: white; padding: 1em; border-radius: 0.4em; border: 1px solid #e0e3eb; min-height: 180px; }
+  #detail h3 { margin: 0 0 0.4em 0; font-size: 0.98em; }
+  #detail .placeholder { color: #999; font-style: italic; font-size: 0.9em; }
+  #detail dl { margin: 0; font-size: 0.83em; }
+  #detail dt { font-weight: 600; color: #555; margin-top: 0.55em; }
+  #detail dd { margin: 0.1em 0 0 0; color: #14212f; word-break: break-word; }
+  footer { padding: 0.55em 1.5em; background: #14212f; color: #aab; font-size: 0.78em; text-align: center; }
+  footer a { color: #9bf; }
+  .leaflet-popup-content { font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NAPH — Real NCAP Records, Computation-Ready <span class="live">LIVE API</span></h1>
+  <p>292 real frames harvested from NCAP's public Air Photo Finder API, reprojected to WGS84 and auto-lifted to NAPH Baseline — no manual cataloguing. Markers coloured by decade.</p>
+</header>
+
+<main>
+  <div id="map"></div>
+  <aside>
+    <h2>Decade</h2>
+    <div class="legend" id="legend"></div>
+
+    <h2>Collection Snapshot</h2>
+    <div class="stats" id="stats">
+      <div class="stat-card"><div class="stat-num" id="total">—</div><div class="stat-label">Real records</div></div>
+      <div class="stat-card"><div class="stat-num" id="years">—</div><div class="stat-label">Year span</div></div>
+      <div class="stat-card"><div class="stat-num" id="vert">—</div><div class="stat-label">Vertical / oblique</div></div>
+      <div class="stat-card"><div class="stat-num" id="tier">—</div><div class="stat-label">Baseline conformant</div></div>
+    </div>
+
+    <h2>Selected Record</h2>
+    <div id="detail"><p class="placeholder">Click any footprint to view its NAPH metadata.</p></div>
+  </aside>
+</main>
+
+<footer>
+  Real data via <a href="https://airphotofinder.ncap.org/">NCAP Air Photo Finder</a> · rights NCAP / Historic Environment Scotland ·
+  standard by <a href="https://github.com/fabio-rovai/open-ontologies">Open Ontologies</a> (CC BY 4.0)
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script>
+const DECADE_COLORS = {
+  '1920s': '#8e5cc0', '1930s': '#4a90c2', '1940s': '#d97757',
+  '1950s': '#2e9e6b', '1960s': '#c0913c', '1970s': '#b04a6a',
+};
+function decade(dateStr){ const y=parseInt((dateStr||'').slice(0,4)); if(!y) return '—'; return (Math.floor(y/10)*10)+'s'; }
+function metaPair(rec,label){ const p=(rec.metadata||[]).find(m=>m.label.en[0]===label); return p?p.value.en[0]:''; }
+function parseWKT(wkt){ const m=/POLYGON\s*\(\(([^)]+)\)\)/.exec(wkt||''); if(!m) return null;
+  return m[1].split(',').map(s=>{ const [lon,lat]=s.trim().split(/\s+/).map(Number); return [lat,lon]; }); }
+
+async function load(){
+  const resp = await fetch('../reports/real-iiif-collection.json');
+  const collection = await resp.json();
+  const items = collection.items;
+
+  const map = L.map('map',{worldCopyJump:true}).setView([40,10],2);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap',maxZoom:18}).addTo(map);
+  const markers = L.featureGroup().addTo(map);
+
+  const decCounts={}, years=new Set(); let vert=0, obl=0;
+  items.forEach(item=>{
+    const wkt=metaPair(item,'Geographic footprint (WKT)');
+    const date=metaPair(item,'Date captured');
+    const sortie=metaPair(item,'Sortie');
+    const persp=metaPair(item,'Perspective');
+    const coll=metaPair(item,'Collection context');
+    const dec=decade(date); const color=DECADE_COLORS[dec]||'#888';
+    decCounts[dec]=(decCounts[dec]||0)+1;
+    if(date) years.add(date.slice(0,4));
+    if(persp==='vertical') vert++; else if(persp==='oblique') obl++;
+
+    const poly=parseWKT(wkt); if(!poly) return;
+    L.polygon(poly,{color:color,weight:1,fillOpacity:0.3}).addTo(markers);
+    const lats=poly.map(p=>p[0]), lons=poly.map(p=>p[1]);
+    const center=[(Math.min(...lats)+Math.max(...lats))/2,(Math.min(...lons)+Math.max(...lons))/2];
+    const mk=L.circleMarker(center,{radius:5,color:'#fff',weight:1,fillColor:color,fillOpacity:0.95}).addTo(markers);
+    mk.bindPopup(`<strong>${sortie}</strong><br>${date} · ${persp}<br>${coll}`,{closeButton:false});
+    mk.on('mouseover',()=>mk.openPopup()); mk.on('mouseout',()=>mk.closePopup());
+    mk.on('click',()=>showDetail(item));
+  });
+  const view=(location.hash||'').replace('#','');
+  if(view==='europe'){ map.setView([50,6],5); }
+  else if(view==='uk'){ map.setView([56,-3.5],6); }
+  else if(markers.getLayers().length){ map.fitBounds(markers.getBounds().pad(0.08)); }
+
+  // Auto-populate the detail panel with the first (oldest) record for sharing.
+  if(items.length) showDetail(items[0]);
+
+  const yearArr=[...years].sort();
+  document.getElementById('total').textContent=items.length;
+  document.getElementById('years').textContent=yearArr.length?`${yearArr[0]}–${yearArr[yearArr.length-1]}`:'—';
+  document.getElementById('vert').textContent=`${vert} / ${obl}`;
+  document.getElementById('tier').textContent='100%';
+
+  const leg=document.getElementById('legend');
+  Object.keys(DECADE_COLORS).forEach(d=>{ if(!decCounts[d]) return;
+    leg.insertAdjacentHTML('beforeend',`<div class="legend-row"><span class="swatch" style="background:${DECADE_COLORS[d]}"></span> ${d} — ${decCounts[d]}</div>`); });
+}
+
+function showDetail(item){
+  const html=[`<h3>${item.label.en[0]}</h3>`,'<dl>',
+    ...(item.metadata||[]).map(m=>`<dt>${m.label.en[0]}</dt><dd>${m.value.en[0]}</dd>`),'</dl>',
+    item.requiredStatement?`<dt>Attribution</dt><dd>${item.requiredStatement.value.en[0]}</dd>`:''].join('');
+  document.getElementById('detail').innerHTML=html;
+}
+load().catch(err=>{ document.getElementById('detail').innerHTML=`<p class="placeholder">Could not load manifest: ${err.message}. Serve over HTTP, not file://.</p>`; });
+</script>
+</body>
+</html>

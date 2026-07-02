@@ -4,6 +4,19 @@ A focused, vertical, openly-licensed digitisation standard for **aerial photogra
 
 Aligned with the goals of the **Towards a National Collection** programme (AHRC / UKRI) and the **N-RICH Prototype**. See [CHANGELOG](CHANGELOG.md).
 
+> **Now backed by real NCAP data**
+>
+> This case study no longer runs on synthetic records alone. It ingests a live,
+> reproducible sample of **292 real frames** harvested from NCAP's public
+> [Air Photo Finder API](https://airphotofinder.ncap.org/), reprojected from
+> EPSG:3857 to WGS84 and auto-lifted to the NAPH Baseline tier — **0 SHACL
+> violations**. Testing the standard against real holdings found (and fixed) a
+> real defect in the standard's own date-precision shape.
+>
+> - **What the live API actually exposes:** [`docs/empirical-api-findings.md`](docs/empirical-api-findings.md) — 100% of records already carry a machine-readable footprint and an ISO-8601 date. NCAP is closer to Baseline than the browser suggests.
+> - **Harvester:** [`pipeline/scrapers/ncap_airphotofinder.py`](pipeline/scrapers/ncap_airphotofinder.py) (respectful, rate-limited, metadata only)
+> - **Real data:** [`data/real-ncap-sample.ttl`](data/real-ncap-sample.ttl) · **Live map:** [`demo/real.html`](demo/real.html) · **STAC + GeoJSON exports:** [`reports/`](reports/)
+
 ## Why narrow
 
 Generic GLAM-wide digitisation standards exist. Aerial photography heritage has distinctive characteristics — stereo pairs, ground sample distance, declassification provenance, sortie metadata — that benefit from a focused, deep treatment rather than a generic framework. NAPH is deliberately one vertical, done well. See [ADR-0001](deliverables/06-knowledge-transfer/architecture-decision-records/0001-narrow-vertical.md).
@@ -52,6 +65,9 @@ The [`deliverables/`](deliverables/) directory contains the complete A-to-Z syst
 | 9 architecture decision records (ADRs) | [`deliverables/06-knowledge-transfer/architecture-decision-records/`](deliverables/06-knowledge-transfer/architecture-decision-records/) |
 | Cross-collection federation playbook | [`deliverables/06-knowledge-transfer/federation-playbook/`](deliverables/06-knowledge-transfer/federation-playbook/) |
 | Vision-language classification pipeline spec | [`deliverables/06-knowledge-transfer/vlm-pipeline-spec.md`](deliverables/06-knowledge-transfer/vlm-pipeline-spec.md) |
+| **RiC-O × STAC crosswalk** (archival ↔ geospatial bridge) | [`deliverables/06-knowledge-transfer/ric-o-stac-crosswalk.md`](deliverables/06-knowledge-transfer/ric-o-stac-crosswalk.md) + [`ontology/naph-ric-o-crosswalk.ttl`](ontology/naph-ric-o-crosswalk.ttl) |
+| **Empirical API findings** (measured against live NCAP data) | [`docs/empirical-api-findings.md`](docs/empirical-api-findings.md) |
+| **STAC 1.0 catalog** (292 real frames) + GeoJSON | [`reports/stac/`](reports/stac/) · [`reports/real-footprints.geojson`](reports/real-footprints.geojson) |
 | **7. Templates** (rights, identifier policy, scoping, council charter) | [`deliverables/07-templates/`](deliverables/07-templates/) |
 | **8. Compliance registry** (institutional declarations) | [`registry/`](registry/) |
 
@@ -245,9 +261,9 @@ This is interoperability without lock-in: institutions adopt NAPH and gain the I
 
 ## Roadmap
 
-This is **v0.2** — working ontology, validated SHACL shapes, end-to-end ingest pipeline, IIIF bridge, validation reports.
+This is **v0.3** — working ontology, validated SHACL shapes, end-to-end ingest pipeline, IIIF bridge, validation reports, **and a live real-data harvest** from the NCAP Air Photo Finder API.
 
-- [ ] **v0.3** — expand sample dataset to 50+ records with real Air Photo Finder browse data, add CSV-W mapping spec
+- [x] **v0.3** — real Air Photo Finder data (292 frames, live API, reprojected + validated); date-precision shape fix; STAC + GeoJSON exports; RiC-O × STAC crosswalk
 - [ ] **v0.4** — automated subject classification pipeline (vision-language models, drafts requiring human validation)
 - [ ] **v0.5** — full case study writeup with cost/effort breakdown per tier and partner adoption playbook
 

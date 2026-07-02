@@ -2,19 +2,28 @@
 
 This document examines the gap between what NCAP currently exposes through Air Photo Finder and what the **NAPH Baseline tier** requires.
 
+> **Update (verified against the live API).** The table below was originally
+> reasoned from the *visible website*. We have since harvested a real 300-record
+> sample from NCAP's public `/api/v1` and measured what the payload actually
+> contains. The result is materially more optimistic than the amber/red marks
+> below suggested: machine-readable footprints and ISO-8601 dates are present for
+> 100% of records. The corrected, evidence-based picture is in
+> [`empirical-api-findings.md`](empirical-api-findings.md). The rows below are
+> annotated **[measured: …]** where the live data overturned the original guess.
+
 ## What NCAP currently has
 
-Based on the publicly visible Air Photo Finder interface and NCAP's published cataloguing approach (ISAD-G archival standard):
+Based on the publicly visible Air Photo Finder interface, NCAP's published cataloguing approach (ISAD(G) archival standard), **and a measured sample of the public API** (see [empirical findings](empirical-api-findings.md)):
 
 | Field | Current state | Computation-ready? |
 |-------|--------------|--------------------|
 | Sortie reference | Recorded | ✅ Structured |
 | Frame number | Recorded | ✅ Structured |
-| Date of capture | Recorded, sometimes free-text | ⚠️ Often parseable but not guaranteed ISO 8601 |
-| Geographic footprint | Recorded as visual overlay on map | ⚠️ Visible on map, not exposed as machine-readable WKT/GeoJSON |
+| Date of capture | ISO-8601 in the API, with a `date_precision` flag | ✅ **[measured: 100% ISO 8601; day/year precision self-declared]** |
+| Geographic footprint | WKT `POLYGON` in the API (EPSG:3857) | ✅ **[measured: present for 100%; needs reprojection to WGS84, not new data]** |
 | Squadron / aircraft | Sometimes recorded | ⚠️ Free text, no controlled vocabulary |
-| Rights statement | Implicit (Crown Copyright assumption) | ❌ Not machine-readable, not linked to rightsstatements.org |
-| Persistent identifier | Sortie+frame composite | ⚠️ Resolvable via Air Photo Finder URL but not guaranteed stable |
+| Rights statement | Implicit (licensing-based business model) | ❌ **[measured: absent from payload — the one genuine Baseline gap]** |
+| Persistent identifier | `UNI` + ISAD(G) reference | ⚠️ **[measured: stable UNI on 100%, ISAD(G) on 86% — needs minting into a resolvable URI]** |
 | Provenance chain | Documented in finding aids | ❌ Not linked to individual records |
 | Digitisation metadata | Internal | ❌ Not exposed publicly |
 | Subject / depicts | None | ❌ Not present |

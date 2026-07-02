@@ -1,0 +1,225 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix geo:     <http://www.opengis.net/ont/geosparql#> .
+@prefix rico:    <https://www.ica.org/standards/RiC/ontology#> .
+@prefix stac:    <https://stacspec.org/vocab/1.0.0#> .
+@prefix naph:    <https://w3id.org/naph/ontology#> .
+
+# =============================================================================
+# NAPH x RiC-O x STAC x PROV-O crosswalk
+#
+# Binds the NAPH aerial-photography heritage vocabulary to:
+#   - RiC-O 1.1: Records in Contexts Ontology (ICA/EGAD, May 2025).
+#                  Namespace https://www.ica.org/standards/RiC/ontology#
+#                  All rico: terms below were verified against the published
+#                  RiC-O_1-1.rdf source file (ICA-EGAD/RiC-O, master branch).
+#   - PROV-O: W3C provenance ontology.
+#   - GeoSPARQL: OGC geometry vocabulary (already used by NAPH core).
+#   - STAC 1.0.0: SpatioTemporal Asset Catalog (OGC Community Standard).
+#                  STAC is a JSON specification, not an RDF ontology, so the
+#                  stac: IRIs here are informative anchors (rdfs:seeAlso only,
+#                  never skos:*Match) pointing at STAC field names. The
+#                  operational binding to STAC is the JSON emitted by
+#                  pipeline/build-stac.py, not these triples.
+#
+# Match discipline:
+#   - skos:closeMatch  = strong but not logically identical equivalence.
+#   - skos:exactMatch  = used ONLY where the two terms denote the same thing
+#                        with no scope difference.
+#   - rdfs:seeAlso     = a relevant but non-equivalence pointer (used for all
+#                        STAC field anchors and for any RiC-O term whose scope
+#                        is broader/narrower than the NAPH term).
+# =============================================================================
+
+<https://w3id.org/naph/ontology/ric-o-crosswalk> a owl:Ontology ;
+    dcterms:title "NAPH to RiC-O / STAC / PROV-O crosswalk" ;
+    dcterms:description "Alignment triples binding the NAPH aerial-photography heritage vocabulary to the Records in Contexts Ontology (RiC-O 1.1), PROV-O, GeoSPARQL, and STAC 1.0.0 field anchors." ;
+    dcterms:creator "Kampakis and Co Ltd, trading as The Tesseract Academy" ;
+    dcterms:license <https://creativecommons.org/licenses/by/4.0/> ;
+    rdfs:seeAlso <https://www.ica.org/standards/RiC/ontology> ;
+    rdfs:seeAlso <https://github.com/radiantearth/stac-spec> ;
+    owl:versionInfo "0.1.0" .
+
+# -----------------------------------------------------------------------------
+# CORE ARTEFACTS
+# -----------------------------------------------------------------------------
+
+# An aerial photograph is, archivally, a Record (an atomic record resource).
+# closeMatch not exactMatch: NAPH scopes the whole-life photographic entity
+# (physical exposure + digital surrogate + rights), RiC-O:Record is the
+# archival record resource abstraction.
+naph:AerialPhotograph
+    skos:closeMatch rico:Record ;
+    rdfs:seeAlso rico:RecordResource ;
+    rdfs:seeAlso prov:Entity ;
+    rdfs:seeAlso stac:Item .
+
+# A sortie groups the frames of one flight, an intellectual grouping of
+# record resources, i.e. a RecordSet.
+naph:Sortie
+    skos:closeMatch rico:RecordSet ;
+    rdfs:seeAlso stac:Collection .
+
+# A heritage collection held by an institution, the top-level RecordSet.
+naph:Collection
+    skos:closeMatch rico:RecordSet ;
+    rdfs:seeAlso stac:Catalog .
+
+# The custodial institution is a corporate body / agent that holds records.
+naph:CustodialInstitution
+    skos:closeMatch rico:CorporateBody ;
+    rdfs:seeAlso rico:Agent ;
+    rdfs:seeAlso prov:Organization .
+
+# A NAPH Frame is an identifier construct locating a photograph in its
+# sequence. RiC-O has no exact analogue; the closest structural notion is a
+# component/part of a record resource. seeAlso, not a match, to avoid
+# overstating the correspondence.
+naph:Frame
+    rdfs:seeAlso rico:RecordPart ;
+    rdfs:seeAlso rico:Identifier .
+
+# The digital surrogate is one Instantiation of the archival record; this is
+# the exact hinge between the archival and the imagery worlds.
+naph:DigitalSurrogate
+    skos:closeMatch rico:Instantiation ;
+    rdfs:seeAlso prov:Entity ;
+    rdfs:seeAlso stac:Asset .
+
+# -----------------------------------------------------------------------------
+# SPATIAL / TEMPORAL
+# -----------------------------------------------------------------------------
+
+# The ground footprint is a GeoSPARQL geometry (exact, NAPH core already
+# subclasses geo:Geometry). RiC-O carries coordinates via rico:Coordinates.
+naph:GeographicFootprint
+    skos:exactMatch geo:Geometry ;
+    rdfs:seeAlso rico:Coordinates ;
+    rdfs:seeAlso stac:Geometry .
+
+# The capture event, the act of exposure. PROV activity is exact in spirit;
+# RiC-O models it as an Activity/Event associated with the record.
+naph:CaptureEvent
+    skos:closeMatch prov:Activity ;
+    rdfs:seeAlso rico:Activity ;
+    rdfs:seeAlso rico:Event .
+
+# -----------------------------------------------------------------------------
+# PROVENANCE / DIGITISATION
+# -----------------------------------------------------------------------------
+
+naph:DigitisationEvent
+    skos:closeMatch prov:Activity ;
+    rdfs:seeAlso rico:Activity .
+
+# Ordered custody sequence. RiC-O expresses organic provenance through the
+# hasOrganicProvenance relation rather than a first-class "chain" class, so
+# this is a seeAlso pointer to that property, plus a closeMatch to prov:Bundle
+# (NAPH core already subclasses prov:Bundle).
+naph:ProvenanceChain
+    skos:closeMatch prov:Bundle ;
+    rdfs:seeAlso rico:hasOrganicProvenance .
+
+# NAPH has a first-class RightsStatement class. RiC-O 1.1 has NO Rights class;
+# rights/legal status is carried via rico:Mandate and rights-holder relations.
+# We therefore only seeAlso rico:Mandate (uncertain, scope differs) and give a
+# closeMatch to dcterms:RightsStatement, which IS a genuine equivalent.
+naph:RightsStatement
+    skos:closeMatch dcterms:RightsStatement ;
+    rdfs:seeAlso rico:Mandate .
+
+# -----------------------------------------------------------------------------
+# PROPERTIES
+# -----------------------------------------------------------------------------
+
+# Persistent identifier of the photograph.
+naph:hasIdentifier
+    skos:closeMatch rico:hasOrHadIdentifier ;
+    rdfs:seeAlso dcterms:identifier .
+
+# Sortie reference string -> a name/identifier of the RecordSet.
+naph:sortieReference
+    rdfs:seeAlso rico:hasOrHadIdentifier .
+
+# Frame membership -> component-of relation between record parts / resources.
+naph:partOfSortie
+    skos:closeMatch rico:isOrWasComponentOf .
+
+# Collection membership.
+naph:belongsToCollection
+    skos:closeMatch rico:isOrWasComponentOf .
+
+# Custodian relation -> the record set has (or had) a holder.
+naph:custodian
+    skos:closeMatch rico:hasOrHadHolder ;
+    rdfs:seeAlso prov:wasAttributedTo .
+
+# Capture date -> creation date of the record; also a STAC datetime anchor.
+naph:capturedOn
+    skos:closeMatch rico:hasCreationDate ;
+    rdfs:seeAlso dcterms:created ;
+    rdfs:seeAlso stac:datetime .
+
+# Footprint linkage -> a record associated with a place / location.
+naph:coversArea
+    rdfs:seeAlso rico:isAssociatedWithPlace ;
+    rdfs:seeAlso rico:hasOrHadLocation ;
+    rdfs:seeAlso geo:hasGeometry ;
+    rdfs:seeAlso stac:bbox .
+
+# WKT serialisation is exactly the GeoSPARQL property.
+naph:asWKT
+    skos:exactMatch geo:asWKT ;
+    rdfs:seeAlso rico:hasOrHadCoordinates .
+
+# Digital surrogate -> instantiation of the record.
+naph:hasDigitalSurrogate
+    skos:closeMatch rico:hasOrHadInstantiation ;
+    rdfs:seeAlso prov:wasDerivedFrom .
+
+# Provenance chain linkage -> organic provenance of the record.
+naph:hasProvenanceChain
+    skos:closeMatch rico:hasOrganicProvenance ;
+    rdfs:seeAlso prov:wasGeneratedBy .
+
+# Capture-event linkage -> record associated with an event.
+naph:hasCaptureEvent
+    skos:closeMatch rico:isAssociatedWithEvent ;
+    rdfs:seeAlso prov:wasGeneratedBy .
+
+# Camera / documentary form of the image.
+naph:cameraType
+    rdfs:seeAlso rico:hasDocumentaryFormType ;
+    rdfs:seeAlso rico:hasCarrierType .
+
+# Subject linkage.
+naph:depicts
+    skos:closeMatch rico:hasOrHadSubject ;
+    rdfs:seeAlso dcterms:subject .
+
+# Depicted place authority.
+naph:placeAuthorityURI
+    rdfs:seeAlso rico:isAssociatedWithPlace ;
+    rdfs:seeAlso rico:hasOrHadLocation .
+
+# =============================================================================
+# UNVERIFIED / SCOPE-DIVERGENT RiC-O TERMS (flagged, not asserted as matches)
+#
+# No unconfirmed RiC-O IRIs are asserted anywhere in this file. Two candidate
+# RecordSet-membership properties (isPartOfRecordSet, isMemberOf) could NOT be
+# confirmed against RiC-O_1-1.rdf and were therefore REMOVED rather than
+# guessed; naph:partOfSortie / naph:belongsToCollection map instead to the
+# confirmed rico:isOrWasComponentOf.
+# Confirmed-present RiC-O terms used as matches: Record, RecordSet,
+# RecordResource, RecordPart, Instantiation, CorporateBody, Agent, Coordinates,
+# Activity, Event, Mandate, Identifier, hasOrHadIdentifier,
+# hasOrHadInstantiation, hasOrganicProvenance, hasOrHadHolder, hasCreationDate,
+# isAssociatedWithEvent, isAssociatedWithPlace, hasOrHadLocation,
+# hasOrHadCoordinates, hasDocumentaryFormType, hasCarrierType, hasOrHadSubject,
+# isOrWasComponentOf.
+# RiC-O 1.1 has NO Rights class, rights are handled via rico:Mandate.
+# =============================================================================
