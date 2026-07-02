@@ -15,6 +15,13 @@ the ontology, SHACL shapes and RiC-O × STAC crosswalk are unchanged — only th
 thin harvester adapter differs. A US adapter pattern is documented at
 [`pipeline/scrapers/usgs_earthexplorer.py`](../pipeline/scrapers/usgs_earthexplorer.py).
 
+![NAPL Temporal Series regions across Canada, harvested live and lifted to NAPH
+Baseline](../assets/real-demo-canada.png)
+
+*8 NAPL Temporal Series regions (red) harvested live from the open Government of
+Canada CKAN API and lifted to NAPH Baseline. The amber cluster is the US
+WHAIFinder sample; teal is NCAP (UK) — same standard, three collections.*
+
 ## Headline
 
 > Where NCAP was missing exactly one Baseline field (machine-readable rights,

@@ -8,6 +8,13 @@ public-domain USDA survey photography — read from its public **ArcGIS
 FeatureServer** on 2 July 2026. Metadata only; read-only; no authentication. See
 [`pipeline/scrapers/whaifinder_arcgis.py`](../pipeline/scrapers/whaifinder_arcgis.py).*
 
+![225 real WHAIFinder frames across Wisconsin, footprints reconstructed from
+centerpoint and scale](../assets/real-demo-usa.png)
+
+*225 real Wisconsin Historic Aerial Imagery frames (1937–1967, public-domain USDA),
+harvested live from the open ArcGIS FeatureServer. Each footprint reconstructed
+closed-form from the published centerpoint plus map scale.*
+
 ## Why not USGS
 
 The obvious US target is the USGS EROS "Aerial Photo Single Frames" archive (6.5M
@@ -60,6 +67,13 @@ At Baseline it is a faithful, automatable reconstruction of where the frame look
 the substrate (centerpoint + scale) was already in the data.
 
 ## Three collections, three different transforms — same standard
+
+![Three national aerial collections — NCAP (UK), NAPL (Canada), WHAIFinder (USA) —
+on one map, all lifted to the same NAPH Baseline](../assets/real-demo-three-country.png)
+
+*NCAP (teal, UK), NAPL (red, Canada) and WHAIFinder (amber, USA), harvested live
+from public endpoints and lifted to the same NAPH Baseline with 0 SHACL violations.
+Same ontology, shapes and crosswalk throughout; only the harvester differs.*
 
 | | **NCAP (UK)** | **NAPL (Canada)** | **WHAIFinder (USA)** |
 |---|---|---|---|
