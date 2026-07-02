@@ -17,6 +17,27 @@ Aligned with the goals of the **Towards a National Collection** programme (AHRC 
 > - **Harvester:** [`pipeline/scrapers/ncap_airphotofinder.py`](pipeline/scrapers/ncap_airphotofinder.py) (respectful, rate-limited, metadata only)
 > - **Real data:** [`data/real-ncap-sample.ttl`](data/real-ncap-sample.ttl) · **Live map:** [`demo/real.html`](demo/real.html) · **STAC + GeoJSON exports:** [`reports/`](reports/)
 
+> **Also backed by real Canadian data (NAPL)**
+>
+> To test whether the standard is genuinely source-agnostic or quietly shaped
+> around one archive, it was run against a second national collection: Canada's
+> **National Air Photo Library** (NAPL, Natural Resources Canada), via the open
+> **Government of Canada CKAN API** (no authentication). **40 dated orthophoto
+> mosaics across 8 regions (1932–2004)** lifted to NAPH Baseline — **0 SHACL
+> violations**. The ontology, shapes and crosswalk were unchanged; only the
+> harvester adapter differs.
+>
+> The cross-national result is the interesting part: NCAP (UK) has frame-level
+> footprints but **0%** machine-readable rights, while NAPL (Canada) ships
+> **100%** machine-readable rights (Open Government Licence) and native-WGS84
+> footprints but at collection (mosaic) granularity. The two archives are missing
+> opposite things — which is exactly what a shared Baseline test is for.
+>
+> - **Findings + cross-national table:** [`docs/canada-napl-findings.md`](docs/canada-napl-findings.md)
+> - **Harvester:** [`pipeline/scrapers/napl_opencanada.py`](pipeline/scrapers/napl_opencanada.py) (open CKAN API, metadata only, no auth)
+> - **Real data:** [`data/real-napl-sample.ttl`](data/real-napl-sample.ttl) · **GeoJSON:** [`reports/real-napl-footprints.geojson`](reports/real-napl-footprints.geojson)
+> - **United States:** [`pipeline/scrapers/usgs_earthexplorer.py`](pipeline/scrapers/usgs_earthexplorer.py) documents the USGS EROS M2M adapter pattern (needs a free USGS token).
+
 ## Why narrow
 
 Generic GLAM-wide digitisation standards exist. Aerial photography heritage has distinctive characteristics — stereo pairs, ground sample distance, declassification provenance, sortie metadata — that benefit from a focused, deep treatment rather than a generic framework. NAPH is deliberately one vertical, done well. See [ADR-0001](deliverables/06-knowledge-transfer/architecture-decision-records/0001-narrow-vertical.md).
