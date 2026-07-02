@@ -10,10 +10,10 @@
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1a1a2a; }
-  header { padding: 1.1em 1.5em; background: #14212f; color: white; }
+  header { padding: 1.1em 1.5em; background: #313b45; color: white; }
   header h1 { margin: 0 0 0.3em 0; font-size: 1.35em; font-weight: 600; }
   header p { margin: 0; opacity: 0.82; font-size: 0.88em; }
-  header .live { display:inline-block; background:#2e7d4f; color:#fff; font-size:0.7em; font-weight:600; padding:0.15em 0.6em; border-radius:0.3em; letter-spacing:0.04em; vertical-align:middle; margin-left:0.5em; }
+  header .live { display:inline-block; background:#3a9e99; color:#fff; font-size:0.7em; font-weight:600; padding:0.15em 0.6em; border-radius:0.3em; letter-spacing:0.04em; vertical-align:middle; margin-left:0.5em; }
   main { display: flex; height: calc(100vh - 96px); }
   #map { flex: 1; }
   aside { width: 380px; padding: 1em 1.2em; overflow-y: auto; background: #f6f7fa; border-left: 1px solid #d0d4dc; }
@@ -23,16 +23,16 @@
   .swatch { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
   .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; margin-bottom: 1em; font-size: 0.85em; }
   .stat-card { background: white; padding: 0.6em 0.8em; border-radius: 0.4em; border: 1px solid #e0e3eb; }
-  .stat-num { font-size: 1.35em; font-weight: 600; color: #14212f; }
+  .stat-num { font-size: 1.35em; font-weight: 600; color: #313b45; }
   .stat-label { color: #666; font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; }
   #detail { background: white; padding: 1em; border-radius: 0.4em; border: 1px solid #e0e3eb; min-height: 180px; }
   #detail h3 { margin: 0 0 0.4em 0; font-size: 0.98em; }
   #detail .placeholder { color: #999; font-style: italic; font-size: 0.9em; }
   #detail dl { margin: 0; font-size: 0.83em; }
   #detail dt { font-weight: 600; color: #555; margin-top: 0.55em; }
-  #detail dd { margin: 0.1em 0 0 0; color: #14212f; word-break: break-word; }
-  footer { padding: 0.55em 1.5em; background: #14212f; color: #aab; font-size: 0.78em; text-align: center; }
-  footer a { color: #9bf; }
+  #detail dd { margin: 0.1em 0 0 0; color: #313b45; word-break: break-word; }
+  footer { padding: 0.55em 1.5em; background: #313b45; color: #b7c0c7; font-size: 0.78em; text-align: center; }
+  footer a { color: #5ac3be; }
   .leaflet-popup-content { font-size: 0.85em; }
 </style>
 </head>
@@ -72,8 +72,8 @@
         crossorigin=""></script>
 <script>
 const DECADE_COLORS = {
-  '1920s': '#8e5cc0', '1930s': '#4a90c2', '1940s': '#d97757',
-  '1950s': '#2e9e6b', '1960s': '#c0913c', '1970s': '#b04a6a',
+  '1920s': '#313b45', '1930s': '#2d8884', '1940s': '#3a9e99',
+  '1950s': '#5ac3be', '1960s': '#b5792a', '1970s': '#b0403a',
 };
 function decade(dateStr){ const y=parseInt((dateStr||'').slice(0,4)); if(!y) return '—'; return (Math.floor(y/10)*10)+'s'; }
 function metaPair(rec,label){ const p=(rec.metadata||[]).find(m=>m.label.en[0]===label); return p?p.value.en[0]:''; }
