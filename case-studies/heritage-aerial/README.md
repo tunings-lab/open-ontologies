@@ -36,7 +36,27 @@ Aligned with the goals of the **Towards a National Collection** programme (AHRC 
 > - **Findings + cross-national table:** [`docs/canada-napl-findings.md`](docs/canada-napl-findings.md)
 > - **Harvester:** [`pipeline/scrapers/napl_opencanada.py`](pipeline/scrapers/napl_opencanada.py) (open CKAN API, metadata only, no auth)
 > - **Real data:** [`data/real-napl-sample.ttl`](data/real-napl-sample.ttl) · **GeoJSON:** [`reports/real-napl-footprints.geojson`](reports/real-napl-footprints.geojson)
-> - **United States:** [`pipeline/scrapers/usgs_earthexplorer.py`](pipeline/scrapers/usgs_earthexplorer.py) documents the USGS EROS M2M adapter pattern (needs a free USGS token).
+
+> **And backed by real US data (WHAIFinder) — without the token-gated API**
+>
+> The obvious US target, USGS EROS, has a token-gated M2M API. Rather than gate the
+> demo behind credentials, the third national collection uses an **openly queryable**
+> holding: the **Wisconsin Historic Aerial Imagery Finder** (~201k frame-level
+> records, largely public-domain USDA survey photography), via its public **ArcGIS
+> FeatureServer** (no auth). **225 real frames (1937–1967)** lifted to NAPH Baseline —
+> **0 SHACL violations**.
+>
+> The US index publishes a **point centerpoint**, not a polygon — so the Baseline
+> footprint is a **closed-form reconstruction** from centerpoint + map scale (standard
+> 9×9-inch frame). That gives the full three-country result: each archive was missing
+> a *different* Baseline piece (rights in the UK, frame granularity in Canada, footprint
+> geometry in the US) and each was closed by a *different* single transform — reproject,
+> publish-as-is, reconstruct — with the ontology, shapes and crosswalk **unchanged**.
+>
+> - **Findings + three-country table:** [`docs/usa-whaifinder-findings.md`](docs/usa-whaifinder-findings.md)
+> - **Harvester:** [`pipeline/scrapers/whaifinder_arcgis.py`](pipeline/scrapers/whaifinder_arcgis.py) (open ArcGIS REST, no auth)
+> - **Real data:** [`data/real-whai-sample.ttl`](data/real-whai-sample.ttl) · **GeoJSON:** [`reports/real-whai-footprints.geojson`](reports/real-whai-footprints.geojson)
+> - **USGS (token route):** [`pipeline/scrapers/usgs_earthexplorer.py`](pipeline/scrapers/usgs_earthexplorer.py) documents the USGS EROS M2M pattern (needs a free USGS token).
 
 ## Why narrow
 
