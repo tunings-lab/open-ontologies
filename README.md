@@ -894,6 +894,10 @@ See [`CITATION.cff`](CITATION.cff) for machine-readable metadata. It powers GitH
 
 ---
 
+## Maintainer
+
+Maintained by [The Tesseract Academy](https://gov.tesseract.academy) (Kampakis and Co Ltd), a UK research and data-science practice. Applied case studies built with this toolkit are published in the [Tesseract Foundational Research](https://gov.tesseract.academy/research) programme.
+
 ## License
 
 MIT
