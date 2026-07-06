@@ -1,0 +1,52 @@
+@prefix zef:  <https://tesseract.academy/ns/zef#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL shapes for the ZEF ecosystem graph.
+# Enforce: every entity is labelled; every technology carries a maturity from a
+# controlled list AND a provenance string (maturity is never unsourced);
+# referential integrity on every relationship (no dangling / inferred links).
+
+zef:EntityShape a sh:NodeShape ;
+  sh:targetClass zef:Entity ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string ;
+    sh:message "Every ecosystem entity must have exactly one label." ;
+    sh:maxCount 1 ;
+  ] .
+
+zef:TechnologyShape a sh:NodeShape ;
+  sh:targetClass zef:Technology ;
+  sh:property [
+    sh:path zef:maturity ;
+    sh:minCount 1 ; sh:maxCount 1 ;
+    sh:in ( "Research" "Development" "Demonstration" "Pilot" "Commercial" ) ;
+    sh:message "Technology maturity must be one of Research, Development, Demonstration, Pilot, Commercial." ;
+  ] ;
+  sh:property [
+    sh:path zef:maturityProvenance ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string ;
+    sh:message "Technology maturity must carry a provenance string (source and date); it is never unsourced." ;
+  ] .
+
+# Referential integrity: the object of every ecosystem relationship must itself be a
+# declared zef:Entity. This is the graph-level equivalent of NAVIGATE's requirement that
+# only validated, provided relationships are shown and none are inferred.
+zef:ReferentialIntegrityShape a sh:NodeShape ;
+  sh:targetClass zef:Entity ;
+  sh:property [ sh:path zef:funds ;          sh:class zef:Entity ; sh:message "funds must point to a declared entity." ] ;
+  sh:property [ sh:path zef:develops ;       sh:class zef:Entity ; sh:message "develops must point to a declared entity." ] ;
+  sh:property [ sh:path zef:partnerOf ;      sh:class zef:Entity ; sh:message "partnerOf must point to a declared entity." ] ;
+  sh:property [ sh:path zef:memberOf ;       sh:class zef:Entity ; sh:message "memberOf must point to a declared entity." ] ;
+  sh:property [ sh:path zef:basedAt ;        sh:class zef:Airport ; sh:message "basedAt must point to a declared Airport." ] ;
+  sh:property [ sh:path zef:demonstratesAt ; sh:class zef:Airport ; sh:message "demonstratesAt must point to a declared Airport." ] ;
+  sh:property [ sh:path zef:usesTechnology ; sh:class zef:Technology ; sh:message "usesTechnology must point to a declared Technology." ] ;
+  sh:property [ sh:path zef:leads ;          sh:class zef:Entity ; sh:message "leads must point to a declared entity." ] ;
+  sh:property [ sh:path zef:regulates ;      sh:class zef:Entity ; sh:message "regulates must point to a declared entity." ] ;
+  sh:property [ sh:path zef:coordinates ;    sh:class zef:Entity ; sh:message "coordinates must point to a declared entity." ] ;
+  sh:property [ sh:path zef:feedsInto ;      sh:class zef:Technology ; sh:message "feedsInto must point to a declared Technology." ] .

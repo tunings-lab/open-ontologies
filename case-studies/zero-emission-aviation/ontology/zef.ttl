@@ -1,0 +1,45 @@
+@prefix zef:  <https://tesseract.academy/ns/zef#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Zero-Emission Flight (ZEF) ecosystem ontology
+# The Tesseract Academy. Open reference vocabulary (CC BY 4.0).
+
+zef: a owl:Ontology ;
+  rdfs:label "UK Zero-Emission Flight Ecosystem Ontology" ;
+  rdfs:comment "A small, computation-ready vocabulary for the UK hydrogen and electric aviation ecosystem: organisations, airports, programmes, projects, funders, bodies, alliances and technologies, and the relationships between them." .
+
+# --- Classes ---
+zef:Entity        a owl:Class ; rdfs:label "Ecosystem entity" .
+zef:Organisation  a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Organisation" .
+zef:Airport       a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Airport" .
+zef:Programme     a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Programme" .
+zef:Project       a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Project" .
+zef:Funder        a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Funder" .
+zef:Body          a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Body" .
+zef:Alliance      a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Alliance" .
+zef:Technology    a owl:Class ; rdfs:subClassOf zef:Entity ; rdfs:label "Technology" .
+
+# --- Object properties (ecosystem relationships) ---
+zef:funds          a owl:ObjectProperty ; rdfs:label "funds" ; rdfs:range zef:Entity .
+zef:develops       a owl:ObjectProperty ; rdfs:label "develops" ; rdfs:range zef:Entity .
+zef:partnerOf      a owl:ObjectProperty ; rdfs:label "partner of" ; rdfs:range zef:Entity .
+zef:memberOf       a owl:ObjectProperty ; rdfs:label "member of" ; rdfs:range zef:Entity .
+zef:basedAt        a owl:ObjectProperty ; rdfs:label "based at" ; rdfs:range zef:Airport .
+zef:demonstratesAt a owl:ObjectProperty ; rdfs:label "demonstrates at" ; rdfs:range zef:Airport .
+zef:usesTechnology a owl:ObjectProperty ; rdfs:label "uses technology" ; rdfs:range zef:Technology .
+zef:leads          a owl:ObjectProperty ; rdfs:label "leads" ; rdfs:range zef:Entity .
+zef:regulates      a owl:ObjectProperty ; rdfs:label "regulates" ; rdfs:range zef:Entity .
+zef:coordinates    a owl:ObjectProperty ; rdfs:label "coordinates" ; rdfs:range zef:Entity .
+zef:feedsInto      a owl:ObjectProperty ; rdfs:label "feeds into" ; rdfs:range zef:Technology ;
+  rdfs:comment "Upstream-to-downstream link in the hydrogen production-to-propulsion chain." .
+
+# --- Datatype properties ---
+zef:maturity           a owl:DatatypeProperty ; rdfs:label "maturity" ; rdfs:range xsd:string ;
+  rdfs:comment "Indicative maturity band. Allowed: Research, Development, Demonstration, Pilot, Commercial." .
+zef:maturityProvenance a owl:DatatypeProperty ; rdfs:label "maturity provenance" ; rdfs:range xsd:string ;
+  rdfs:comment "Source and date for the indicative maturity value. Required so maturity is never unsourced." .
+zef:chainStage         a owl:DatatypeProperty ; rdfs:label "chain stage" ; rdfs:range xsd:string .
+zef:sourceRef          a owl:DatatypeProperty ; rdfs:label "source reference" ; rdfs:range xsd:string .
