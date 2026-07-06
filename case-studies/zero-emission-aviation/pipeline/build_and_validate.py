@@ -148,27 +148,57 @@ def export_demo_json(data, path):
     json.dump({"nodes": nodes, "edges": edges}, open(path, "w"), indent=1)
 
 def render_png(data, path):
+    """Clean columnar 'stakeholder map': nodes grouped into role columns with
+    evenly spaced, halo-backed labels and light curved edges. Far more legible
+    than a force-directed hairball at this node count."""
     import matplotlib; matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Patch
-    import networkx as nx
-    G = nx.DiGraph()
+    from matplotlib.patches import Patch, FancyArrowPatch
+    # role -> column index; columns are ordered left (upstream policy/funding) to right
+    COL = {"Funder": 0, "Body": 0, "Programme": 1, "Project": 2,
+           "Organisation": 3, "Airport": 3, "Alliance": 3, "Technology": 4, "Standard": 5}
+    HEAD = {0: "Funders & bodies", 1: "Programmes", 2: "Projects",
+            3: "Delivery actors", 4: "Technologies", 5: "Standards"}
+    XGAP = 6.0
+    ents = {e["id"]: e for e in data["entities"]}
+    cols = {}
     for e in data["entities"]:
-        G.add_node(e["id"], label=e["label"], type=e["type"])
+        cols.setdefault(COL[e["type"]], []).append(e)
+    pos, node_col = {}, {}
+    for c, items in cols.items():
+        items.sort(key=lambda e: (e["type"], e["label"]))
+        n = len(items)
+        for i, e in enumerate(items):
+            y = (n - 1) / 2.0 - i               # centre the column vertically
+            pos[e["id"]] = (c * XGAP, y * 1.15)
+            node_col[e["id"]] = c
+
+    fig, ax = plt.subplots(figsize=(19, 13)); ax.axis("off")
+    # edges as light curved arrows
     for r in data["relations"]:
-        if r["s"] in G and r["o"] in G:
-            G.add_edge(r["s"], r["o"])
-    pos = nx.spring_layout(G, k=1.1, iterations=250, seed=7)
-    fig, ax = plt.subplots(figsize=(16, 12)); ax.axis("off")
-    cols = [TYPE_COL[G.nodes[n]["type"]] for n in G.nodes]
-    sizes = [1500 if G.nodes[n]["type"] in ("Programme", "Project", "Funder") else 950 for n in G.nodes]
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color="#cfcfcf", arrows=True, arrowsize=8, width=0.8, alpha=0.75)
-    nx.draw_networkx_nodes(G, pos, ax=ax, node_color=cols, node_size=sizes, edgecolors="white", linewidths=1.2)
-    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes}, font_size=7, font_color="#111", ax=ax)
-    ax.legend(handles=[Patch(color=c, label=t) for t, c in TYPE_COL.items()], loc="lower left", fontsize=9, frameon=False, ncol=2)
-    ax.set_title("UK Zero-Emission Flight Ecosystem  |  open, SHACL-validated reference graph  |  The Tesseract Academy",
-                 fontsize=13, fontweight="bold", color="#1f3864", loc="left", pad=16)
-    plt.tight_layout(); plt.savefig(path, dpi=150, bbox_inches="tight"); plt.close()
+        if r["s"] in pos and r["o"] in pos:
+            x1, y1 = pos[r["s"]]; x2, y2 = pos[r["o"]]
+            rad = 0.12 if node_col[r["s"]] != node_col[r["o"]] else 0.35
+            ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2), connectionstyle=f"arc3,rad={rad}",
+                         arrowstyle="-|>", mutation_scale=8, lw=0.6, color="#c4ccd4", alpha=0.55, zorder=1))
+    # nodes + labels
+    for e in data["entities"]:
+        x, y = pos[e["id"]]; col = TYPE_COL[e["type"]]
+        ax.scatter([x], [y], s=430, c=col, edgecolors="white", linewidths=1.3, zorder=3)
+        ax.text(x + 0.28, y, e["label"], va="center", ha="left", fontsize=8.2, color="#16202c", zorder=4,
+                bbox=dict(facecolor="white", edgecolor="none", alpha=0.72, pad=0.6, boxstyle="round,pad=0.15"))
+    # reserve headroom so the title sits clearly above the column headers
+    ys = [p[1] for p in pos.values()]; ymin_n, ymax_n = min(ys), max(ys)
+    ax.set_ylim(ymin_n - 1.2, ymax_n + 3.0)
+    ax.set_xlim(-1.0, 5 * XGAP + 5.0)
+    for c, title in HEAD.items():
+        ax.text(c * XGAP - 0.3, ymax_n + 1.1, title, ha="left", va="bottom",
+                fontsize=11, fontweight="bold", color="#1f3864")
+    ax.text(-0.3, ymax_n + 2.4, "UK Zero-Emission Flight Ecosystem   Open, SHACL-validated reference graph   The Tesseract Academy",
+            ha="left", va="bottom", fontsize=14, fontweight="bold", color="#16202c")
+    ax.legend(handles=[Patch(color=cc, label=t) for t, cc in TYPE_COL.items()],
+              loc="lower left", fontsize=9.5, frameon=False, ncol=3, bbox_to_anchor=(0, -0.02))
+    plt.savefig(path, dpi=150, bbox_inches="tight"); plt.close()
 
 def main():
     data = json.load(open(os.path.join(HERE, "data", "ecosystem.json")))
