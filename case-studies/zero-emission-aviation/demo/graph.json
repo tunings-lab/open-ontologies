@@ -6,7 +6,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Hydrogen-electric powertrains (ZA600, ZA2000).",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:caes",
@@ -14,7 +15,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Hydrogen-electric propulsion; Britten-Norman Islander conversion.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:gkn",
@@ -22,7 +24,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Hydrogen propulsion programmes H2GEAR and H2FlyGHT.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:rolls-royce",
@@ -30,7 +33,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Hydrogen combustion gas-turbine testing.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:airbus",
@@ -38,7 +42,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "ZEROe hydrogen concept; timeline revised in 2025 to the later 2030s.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:easyjet",
@@ -46,7 +51,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Airline; Hydrogen in Aviation member; hydrogen ground-test partner.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:britten-norman",
@@ -54,7 +60,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "BN-2 Islander airframe used in Project Fresson.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:loganair",
@@ -62,7 +69,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "UK regional operator; regional decarbonisation partner.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:intelligent-energy",
@@ -70,7 +78,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Hydrogen fuel-cell systems.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:orsted",
@@ -78,7 +87,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Energy company; Hydrogen in Aviation member (green hydrogen supply).",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:deloitte",
@@ -86,7 +96,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Commercial and blueprint lead on Project NAPKIN.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:ucl-ats",
@@ -94,15 +105,17 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Airline Behaviour Model; route/demand modelling on NAPKIN.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:cranfield-uni",
    "label": "Cranfield University",
    "type": "Organisation",
    "color": "#2e75b6",
-   "note": "Aerospace research; hydrogen integration.",
-   "maturity": ""
+   "note": "Aerospace research; hydrogen integration (CH2i).",
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:southampton",
@@ -110,7 +123,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "NAPKIN research partner.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "air:heathrow",
@@ -118,7 +132,8 @@
    "type": "Airport",
    "color": "#c0642a",
    "note": "Project NAPKIN lead.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "air:london-city",
@@ -126,7 +141,8 @@
    "type": "Airport",
    "color": "#c0642a",
    "note": "NAPKIN partner.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "air:bristol",
@@ -134,7 +150,8 @@
    "type": "Airport",
    "color": "#c0642a",
    "note": "Airside hydrogen refuelling trial (Project Acorn); Hydrogen in Aviation member.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "air:glasgow",
@@ -142,7 +159,8 @@
    "type": "Airport",
    "color": "#c0642a",
    "note": "CPC Connected Airport Living Lab.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "org:hial",
@@ -150,7 +168,8 @@
    "type": "Organisation",
    "color": "#2e75b6",
    "note": "Sub-regional airport operator; NAPKIN partner.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "fund:dft",
@@ -158,7 +177,8 @@
    "type": "Funder",
    "color": "#2f9e6f",
    "note": "Jet Zero Strategy; funds ZEFI and the Jet Zero programme.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "fund:ati",
@@ -166,7 +186,8 @@
    "type": "Funder",
    "color": "#2f9e6f",
    "note": "Funds aerospace propulsion R&D including FlyZero and hydrogen programmes.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "fund:ukri-ffc",
@@ -174,7 +195,8 @@
    "type": "Funder",
    "color": "#2f9e6f",
    "note": "Innovate UK / UKRI programme funding new aviation systems including NAPKIN and Fresson.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "body:jetzero",
@@ -182,7 +204,8 @@
    "type": "Body",
    "color": "#555555",
    "note": "Government-industry partnership on UK aviation decarbonisation.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "body:caa",
@@ -190,7 +213,8 @@
    "type": "Body",
    "color": "#555555",
    "note": "UK aviation regulator; hydrogen aerodrome safety.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "body:cpc",
@@ -198,7 +222,8 @@
    "type": "Body",
    "color": "#555555",
    "note": "Runs the Zero Emission Flight Infrastructure (ZEFI) programme.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "alliance:hia",
@@ -206,7 +231,35 @@
    "type": "Alliance",
    "color": "#c0392b",
    "note": "Industry alliance for hydrogen-powered aviation.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
+  },
+  {
+   "id": "std:iso19880",
+   "label": "ISO 19880-1 (gaseous hydrogen fuelling)",
+   "type": "Standard",
+   "color": "#b8860b",
+   "note": "Gaseous hydrogen fuelling station requirements.",
+   "maturity": "",
+   "trl": ""
+  },
+  {
+   "id": "std:iso13985",
+   "label": "ISO 13985 (liquid hydrogen fuel tanks)",
+   "type": "Standard",
+   "color": "#b8860b",
+   "note": "Liquid hydrogen land-vehicle fuel tanks; reference for cryogenic LH2 handling.",
+   "maturity": "",
+   "trl": ""
+  },
+  {
+   "id": "std:caa-safety",
+   "label": "CAA aerodrome hydrogen safety guidance",
+   "type": "Standard",
+   "color": "#b8860b",
+   "note": "UK regulatory guidance for hydrogen at aerodromes.",
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "prog:zefi",
@@ -214,7 +267,8 @@
    "type": "Programme",
    "color": "#1f3864",
    "note": "DfT-funded, CPC-led programme on airport hydrogen and electric infrastructure.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "prog:flyzero",
@@ -222,7 +276,8 @@
    "type": "Programme",
    "color": "#1f3864",
    "note": "2021-2022 ATI study; concluded liquid hydrogen is the primary long-term zero-carbon aviation fuel.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "prog:jetzero-strategy",
@@ -230,7 +285,8 @@
    "type": "Programme",
    "color": "#1f3864",
    "note": "DfT 2022 strategy for net-zero UK aviation by 2050.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:napkin",
@@ -238,7 +294,8 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "Future Flight Challenge project; sub-regional zero-emission flight blueprint; Heathrow-led.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:hyflyer2",
@@ -246,7 +303,8 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "ZeroAvia hydrogen-electric flight demonstration project.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:h2gear",
@@ -254,7 +312,8 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "GKN Aerospace hydrogen fuel-cell propulsion programme.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:h2flyght",
@@ -262,7 +321,8 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "GKN Aerospace cryogenic hydrogen and electric propulsion programme.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:fresson",
@@ -270,7 +330,8 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "Cranfield Aerospace Solutions hydrogen fuel-cell Islander conversion.",
-   "maturity": ""
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "proj:acorn",
@@ -278,63 +339,71 @@
    "type": "Project",
    "color": "#8e44ad",
    "note": "easyJet-led airside hydrogen refuelling trial at Bristol Airport.",
-   "maturity": ""
-  },
-  {
-   "id": "tech:fuelcell-powertrain",
-   "label": "Hydrogen fuel-cell powertrain",
-   "type": "Technology",
-   "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Demonstration"
-  },
-  {
-   "id": "tech:h2-combustion",
-   "label": "Hydrogen combustion gas turbine",
-   "type": "Technology",
-   "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Demonstration"
-  },
-  {
-   "id": "tech:lh2-storage",
-   "label": "Liquid hydrogen cryogenic storage",
-   "type": "Technology",
-   "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Development"
-  },
-  {
-   "id": "tech:gh2-storage",
-   "label": "Gaseous hydrogen storage",
-   "type": "Technology",
-   "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Pilot"
+   "maturity": "",
+   "trl": ""
   },
   {
    "id": "tech:electrolysis",
    "label": "Green hydrogen electrolysis",
    "type": "Technology",
    "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Commercial"
-  },
-  {
-   "id": "tech:lh2-refuelling",
-   "label": "Airside liquid hydrogen refuelling",
-   "type": "Technology",
-   "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Pilot"
+   "note": "PEM and alkaline commercial; SOEC emerging.",
+   "maturity": "Commercial",
+   "trl": ""
   },
   {
    "id": "tech:liquefaction",
    "label": "Hydrogen liquefaction and distribution",
    "type": "Technology",
    "color": "#0b8a8a",
-   "note": "",
-   "maturity": "Commercial"
+   "note": "Industrial-scale exists; airport-scale distribution developing.",
+   "maturity": "Commercial",
+   "trl": ""
+  },
+  {
+   "id": "tech:lh2-storage",
+   "label": "Liquid hydrogen cryogenic storage",
+   "type": "Technology",
+   "color": "#0b8a8a",
+   "note": "Airframe and airport cryogenic integration in development.",
+   "maturity": "Development",
+   "trl": 3
+  },
+  {
+   "id": "tech:gh2-storage",
+   "label": "Gaseous hydrogen storage",
+   "type": "Technology",
+   "color": "#0b8a8a",
+   "note": "In use on sub-regional demonstrators.",
+   "maturity": "Pilot",
+   "trl": ""
+  },
+  {
+   "id": "tech:lh2-refuelling",
+   "label": "Airside liquid hydrogen refuelling",
+   "type": "Technology",
+   "color": "#0b8a8a",
+   "note": "First airside trials underway.",
+   "maturity": "Pilot",
+   "trl": ""
+  },
+  {
+   "id": "tech:fuelcell-powertrain",
+   "label": "Hydrogen fuel-cell powertrain",
+   "type": "Technology",
+   "color": "#0b8a8a",
+   "note": "Sub-regional demonstrators flying and ground-testing.",
+   "maturity": "Demonstration",
+   "trl": ""
+  },
+  {
+   "id": "tech:h2-combustion",
+   "label": "Hydrogen combustion gas turbine",
+   "type": "Technology",
+   "color": "#0b8a8a",
+   "note": "Ground tests completed by engine makers.",
+   "maturity": "Demonstration",
+   "trl": ""
   }
  ],
  "edges": [
@@ -484,6 +553,11 @@
    "label": "develops"
   },
   {
+   "from": "org:orsted",
+   "to": "tech:electrolysis",
+   "label": "develops"
+  },
+  {
    "from": "proj:fresson",
    "to": "tech:fuelcell-powertrain",
    "label": "usesTechnology"
@@ -515,6 +589,11 @@
   },
   {
    "from": "org:britten-norman",
+   "to": "proj:fresson",
+   "label": "partnerOf"
+  },
+  {
+   "from": "org:loganair",
    "to": "proj:fresson",
    "label": "partnerOf"
   },
@@ -569,11 +648,6 @@
    "label": "memberOf"
   },
   {
-   "from": "org:loganair",
-   "to": "proj:fresson",
-   "label": "partnerOf"
-  },
-  {
    "from": "body:caa",
    "to": "tech:lh2-refuelling",
    "label": "regulates"
@@ -590,16 +664,16 @@
   },
   {
    "from": "tech:liquefaction",
-   "to": "tech:lh2-refuelling",
-   "label": "feedsInto"
-  },
-  {
-   "from": "tech:lh2-refuelling",
    "to": "tech:lh2-storage",
    "label": "feedsInto"
   },
   {
    "from": "tech:lh2-storage",
+   "to": "tech:lh2-refuelling",
+   "label": "feedsInto"
+  },
+  {
+   "from": "tech:lh2-refuelling",
    "to": "tech:fuelcell-powertrain",
    "label": "feedsInto"
   },
