@@ -62,6 +62,7 @@ pub mod socket;
 pub mod socket;
 pub mod sql_sync;
 pub mod sqlsource;
+pub mod vocab_check;
 pub mod state;
 #[cfg(feature = "embeddings")]
 pub mod structembed;

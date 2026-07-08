@@ -377,6 +377,8 @@ enum Commands {
     },
     /// Validate against SHACL shapes
     Shacl { shapes: String },
+    /// Closed-world vocab check: flag data terms not declared in the loaded ontology
+    VocabCheck { data: String },
     /// Run inference (rdfs, owl-rl, owl-rl-ext, owl-dl)
     Reason {
         #[arg(long, default_value = "rdfs")]
@@ -1647,6 +1649,13 @@ async fn async_main() -> anyhow::Result<()> {
             let (_db, graph) = setup(&cli.data_dir)?;
             let shapes_content = std::fs::read_to_string(&shapes)?;
             let result = ShaclValidator::validate(&graph, &shapes_content)
+                .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
+            output_result(&result, cli.pretty);
+        }
+        Commands::VocabCheck { data } => {
+            let (_db, graph) = setup(&cli.data_dir)?;
+            let data_content = std::fs::read_to_string(&data)?;
+            let result = open_ontologies::vocab_check::check_data_vocab(&graph, &data_content, &[])
                 .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e));
             output_result(&result, cli.pretty);
         }

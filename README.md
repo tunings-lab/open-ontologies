@@ -685,7 +685,7 @@ The same tool, applied to any ontology, produces the same kind of improvement. T
 | **Marketplace** | `marketplace` | Browse and install 32 standard W3C/ISO/industry ontologies |
 | **Remote** | `pull` `push` `import` | Fetch/push ontologies, resolve owl:imports |
 | **Schema** | `import-schema` `sql-ingest` | Postgres + DuckDB → OWL + SQL → RDF ingest |
-| **Data** | `map` `ingest` `shacl` `shacl_check` `reason` `extend` | Structured data → RDF pipeline |
+| **Data** | `map` `ingest` `shacl` `shacl_check` `vocab_check` `reason` `extend` | Structured data → RDF pipeline; `vocab_check` = closed-world check that generated data uses only ontology-declared terms (catches what open-world SHACL misses) |
 | **Versioning** | `version` `history` `rollback` | Named snapshots and rollback |
 | **Lifecycle** | `plan` `apply` `lock` `drift` `enforce` `monitor` `monitor-clear` `lineage` | Terraform-style change management with webhook alerts and [OpenCheir](https://github.com/fabio-rovai/opencheir) governance integration |
 | **Alignment** | `align` `align_feedback` `align_fuzzy` `align_flora` | Cross-ontology class matching with self-calibrating weights + fuzzy-logic adjudication and end-to-end signal-driven pipeline |

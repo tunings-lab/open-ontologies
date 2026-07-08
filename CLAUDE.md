@@ -69,6 +69,7 @@ Claude dynamically decides the next tool call based on what the previous tool re
 | `onto_sql_ingest` | To run a SQL `SELECT` against PostgreSQL or DuckDB and ingest the result rows into RDF (uses the same mapping format as `onto_ingest`). DuckDB acts as a federation backbone via its `httpfs`/`parquet`/`csv`/`postgres_scanner`/`iceberg` extensions. Connection strings: `postgres://…`, `duckdb:///path.duckdb`, `:memory:`, or `*.duckdb` file path. |
 | `onto_map` | To generate a mapping config from data schema + loaded ontology for review |
 | `onto_shacl` | To validate loaded data against SHACL shapes (cardinality, datatypes, classes) |
+| `onto_vocab_check` | To closed-world-check generated DATA: flags any predicate/class used that is not declared in the loaded ontology (hallucinated terms). Catches what open-world SHACL silently passes. Run on LLM-generated Turtle before `onto_load` |
 | `onto_reason` | To run RDFS or OWL-RL inference, materializing inferred triples |
 | `onto_extend` | To run the full pipeline: ingest → SHACL validate → reason in one call |
 | `onto_import_schema` | To import a PostgreSQL or DuckDB database schema as an OWL ontology (requires `postgres` and/or `duckdb` features). Auto-dispatches on connection-string scheme. |
