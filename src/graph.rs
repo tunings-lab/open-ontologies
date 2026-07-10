@@ -316,15 +316,38 @@ impl GraphStore {
             lit.value().parse().unwrap_or(0)
         };
 
+        // Typed subsets: object vs datatype properties. The broad `prop_query`
+        // above also counts rdf:Property and implicit (subPropertyOf/domain/range)
+        // properties, so object + data need not sum to `properties` — but
+        // reporting the real datatype-property count is more honest than the
+        // previous hardcoded 0 (which showed e.g. Schema.org / FOAF as having no
+        // properties even though they declare hundreds).
+        let obj_prop_query = "SELECT (COUNT(DISTINCT ?p) AS ?count) WHERE {
+            ?p a <http://www.w3.org/2002/07/owl#ObjectProperty> .
+            FILTER(isIRI(?p)
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/1999/02/22-rdf-syntax-ns#\")
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/2000/01/rdf-schema#\")
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/2002/07/owl#\"))
+        }";
+        let data_prop_query = "SELECT (COUNT(DISTINCT ?p) AS ?count) WHERE {
+            ?p a <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+            FILTER(isIRI(?p)
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/1999/02/22-rdf-syntax-ns#\")
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/2000/01/rdf-schema#\")
+                && !STRSTARTS(STR(?p), \"http://www.w3.org/2002/07/owl#\"))
+        }";
+
         let classes = count_from_query(class_query);
         let props = count_from_query(prop_query);
+        let object_props = count_from_query(obj_prop_query);
+        let data_props = count_from_query(data_prop_query);
         let individuals = count_from_query(individual_query);
 
         Ok(serde_json::json!({
             "triples": total,
             "classes": classes,
-            "object_properties": props,
-            "data_properties": 0,
+            "object_properties": object_props,
+            "data_properties": data_props,
             "properties": props,
             "individuals": individuals
         })

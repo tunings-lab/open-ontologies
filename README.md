@@ -106,6 +106,8 @@ docker pull ghcr.io/fabio-rovai/open-ontologies:latest
 docker run -i ghcr.io/fabio-rovai/open-ontologies serve
 ```
 
+> `serve` starts an **MCP server that speaks JSON-RPC over stdin/stdout** — it is not an interactive CLI, so on launch it will appear to "hang" while it waits for an MCP client to connect. That is expected. To try the tools directly from a terminal instead, use the CLI subcommands (e.g. `open-ontologies validate <file.ttl>`); to use it with an LLM, wire it into an MCP client as shown under [Connect to your MCP client](#connect-to-your-mcp-client).
+
 **From source (Rust 1.85+):**
 
 ```bash
@@ -250,7 +252,7 @@ The first launch compiles the Tauri shell (~2 min). Subsequent launches start in
 | Feature | Description |
 | --- | --- |
 | **Virtualized Tree** | Ontology explorer that handles 1,500+ classes without lag. Hierarchy connector lines, collapsible branches, type-filtered legend (Class/Property/Individual), search with auto-expand, breadcrumb path navigation, and a connections panel showing domain/range relationships as clickable pills. Only visible rows are in the DOM — constant memory regardless of ontology size. |
-| **AI Agent Chat** | Natural language ontology engineering via Claude Opus 4.6 + Agent SDK. Two build modes: `/build` runs a 13-step pipeline producing IES-level ontologies (500-1,500+ classes, 100-200+ properties), `/sketch` runs 3 steps for quick prototyping (~80 classes). Each tool call is shown in real time. |
+| **AI Agent Chat** | Natural language ontology engineering via Claude Opus 4.8 + Agent SDK. Two build modes: `/build` runs a 13-step pipeline producing IES-level ontologies (500-1,500+ classes, 100-200+ properties), `/sketch` runs 3 steps for quick prototyping (~80 classes). Each tool call is shown in real time. |
 | **Property Inspector** | Protege-style inline triple editor. Click any node to see its `rdfs:subClassOf`, `rdfs:label`, `rdfs:domain`, `rdfs:range` and all other triples. Edit in place, hover to delete, `+ Add` for new triples. Changes are immediately reflected in the graph. |
 | **Lineage Panel** | Full audit trail from SQLite: every plan, apply, enforce, drift, monitor, and align event, grouped by session with timestamps. See exactly what Claude did and in what order. |
 | **Named Save** | `⌘S` to save as `~/.open-ontologies/<name>.ttl`. Auto-saves to `studio-live.ttl` after every mutation so you never lose work. |
@@ -273,15 +275,28 @@ The first launch compiles the Tauri shell (~2 min). Subsequent launches start in
 
 ## Benchmarks
 
+> **How to read these numbers.** Unless stated, LLM results are **single-run** (not averaged over seeds) and use **Claude Opus 4.8**. Several benchmark ontologies (Pizza, FOAF, Schema.org, OWL-Time) are widely published and may appear in an LLM's pretraining data, so a *bare-LLM* score is a **contamination-inclusive baseline**, not a clean measure of reasoning — the contribution is the **delta** the MCP tools add on top of that baseline, and whether that delta reproduces across models. To check exactly that, the repo ships a **cross-model ablation** driving the same tasks with a local **Qwen3-Coder-30B** as well as Claude — see [`benchmark/ontoaxiom/`](benchmark/ontoaxiom/). If the tool-augmented gain holds on a second, open model, the gain is a property of the tooling, not of one vendor's model.
+
 ### OntoAxiom — LLM Axiom Identification
 
 [OntoAxiom](https://arxiv.org/abs/2512.05594) tests axiom identification across 9 ontologies and 3,042 ground truth axioms.
 
-| Approach | F1 | vs o1 (paper best) |
-| --- | --- | --- |
-| o1 (paper's best) | 0.197 | — |
-| Bare Claude Opus | 0.431 | **+119%** |
-| **MCP extraction** | **0.717** | **+264%** |
+All conditions below are scored by a **single evaluator** (`benchmark/ontoaxiom/score_all_conditions.py`) with one shared normalizer, and both averages are reported, because the original scripts disagreed on all of that. `macro` = mean of per-(ontology, axiom) F1; `micro` = F1 over pooled TP/FP/FN.
+
+| Approach | Input | macro F1 | micro F1 |
+| --- | --- | --- | --- |
+| o1 (paper's best) | Name lists | — | 0.197 |
+| Bare Claude Opus | Name lists | 0.451 | 0.397 |
+| Bare Qwen3-Coder-30B | Name lists | 0.223 | 0.176 |
+| Claude Opus, raw OWL file | Full Turtle | **0.768** | 0.686 |
+| Qwen3-Coder-30B, raw OWL file | Full Turtle | 0.673 | 0.667 |
+| **MCP extraction** | **Full OWL** | 0.713 | **0.717** |
+
+**The paper's "raw OWL hurts" result is a scoring artifact.** OntoAxiom reports that an LLM given the full OWL file (F1 = 0.323) does *worse* than one given only class/property name lists (0.431). Those two numbers came from scripts that disagreed on three axes: the name-list scorer splits camelCase and the raw-OWL scorer only lowercases; the first reports a **macro** mean and the second a **micro** F1; and they flip pair order on different axiom types. Every one of those differences penalizes the raw-OWL condition, because that is the one where the model reads real Turtle and therefore answers in QNames (`foaf:Person`) and `rdfs:label` text (`"personal mailbox"` for `mbox`) rather than bare local names. **0.431 and 0.323 were never the same statistic.**
+
+Rescoring the *same stored predictions* under one evaluator flips the sign on both models and under both averages: Claude 0.451 → **0.768** macro (0.397 → 0.686 micro), Qwen 0.246 → **0.673** macro, winning 33/43 and 33/38 cells respectively. `score_condition_d.py --legacy` reproduces the broken 0.323 exactly, so the bug is demonstrated rather than asserted. The correction moves 0 of 5,083 name-list pairs, so it cannot flatter the baseline, and it still under-credits raw OWL: 51.8% of Claude's pairs are label text no normalizer here can match. Full analysis and reproduction: [`benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md`](benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md).
+
+Corrected, reading the ontology and SPARQL-extracting it are **at parity** — raw OWL wins macro (0.768 vs 0.713), extraction wins micro (0.717 vs 0.686). So the tools' edge is **auditability, not F1**: every MCP pair traces to a query against real triples, whereas an LLM reading a file can still hallucinate a plausible pair and no F1 score will say which.
 
 ### Pizza Ontology — Manchester Tutorial
 
@@ -793,14 +808,14 @@ flowchart TD
     end
 
     subgraph Engine["Engine Sidecar (Rust / Axum)"]
-        MCP["/mcp — MCP Streamable HTTP\n43 onto_* tools"]
+        MCP["/mcp — MCP Streamable HTTP\nonto_* tools"]
         REST2["/api/query · /api/update\n/api/save · /api/load-turtle\n/api/stats · /api/lineage"]
         Store["Arc&lt;GraphStore&gt;\nOxigraph"]
         DB["SQLite"]
     end
 
     subgraph Agent["Agent Sidecar (Node.js)"]
-        SDK["Claude Opus 4.6\nAgent SDK"]
+        SDK["Claude Opus 4.8\nAgent SDK"]
         Proto["stdin/stdout JSON protocol"]
     end
 
@@ -846,7 +861,7 @@ flowchart TD
 | Frontend | React 19, Vite 7, TypeScript 5.8, Tailwind CSS 4 |
 | Tree view | Virtualized DOM tree with virtual scroll (no canvas/WebGL dependencies) |
 | UI state | Zustand 5 |
-| AI agent | Claude Opus 4.6 via Agent SDK (Node.js sidecar) |
+| AI agent | Claude Opus 4.8 via Agent SDK (Node.js sidecar) |
 
 ---
 
