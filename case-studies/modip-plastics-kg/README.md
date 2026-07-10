@@ -93,4 +93,6 @@ your data made this queryable (or want the method applied to your own catalogue)
 we'd genuinely like to hear from you: **fabio@thetesseractacademy.com**.
 
 This artifact is part of the [open-ontologies](https://github.com/fabio-rovai/open-ontologies)
-programme of computation-ready reference vocabularies.
+programme of computation-ready reference vocabularies. The dataset is also
+mirrored on Hugging Face:
+[**datasets/fabsssss/modip-plastics-knowledge-graph**](https://huggingface.co/datasets/fabsssss/modip-plastics-knowledge-graph).
