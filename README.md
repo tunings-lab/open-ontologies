@@ -281,20 +281,22 @@ The first launch compiles the Tauri shell (~2 min). Subsequent launches start in
 
 [OntoAxiom](https://arxiv.org/abs/2512.05594) tests axiom identification across 9 ontologies and 3,042 ground truth axioms.
 
-| Approach | Input | F1 | vs o1 (paper best) |
+All conditions below are scored by a **single evaluator** (`benchmark/ontoaxiom/score_all_conditions.py`) with one shared normalizer, and both averages are reported, because the original scripts disagreed on all of that. `macro` = mean of per-(ontology, axiom) F1; `micro` = F1 over pooled TP/FP/FN.
+
+| Approach | Input | macro F1 | micro F1 |
 | --- | --- | --- | --- |
-| o1 (paper's best) | Name lists | 0.197 | — |
-| Bare Claude Opus | Name lists | 0.431 | **+119%** |
-| Bare Qwen3-Coder-30B | Name lists | 0.214 | +9% |
-| Claude Opus, raw OWL file | Full Turtle | 0.718 | **+264%** |
-| Qwen3-Coder-30B, raw OWL file | Full Turtle | 0.640 | **+225%** |
-| **MCP extraction** | **Full OWL** | **0.717** | **+264%** |
+| o1 (paper's best) | Name lists | — | 0.197 |
+| Bare Claude Opus | Name lists | 0.451 | 0.397 |
+| Bare Qwen3-Coder-30B | Name lists | 0.223 | 0.176 |
+| Claude Opus, raw OWL file | Full Turtle | **0.768** | 0.686 |
+| Qwen3-Coder-30B, raw OWL file | Full Turtle | 0.673 | 0.667 |
+| **MCP extraction** | **Full OWL** | 0.713 | **0.717** |
 
-**The paper's "raw OWL hurts" result is a scoring artifact.** OntoAxiom reports that an LLM given the full OWL file (F1 = 0.323) does *worse* than one given only class/property name lists (0.431). Its two conditions were scored with different normalizers: the name-list scorer splits camelCase, the raw-OWL scorer does not. That asymmetry only ever penalizes the raw-OWL condition, because that is the one where the model reads real Turtle and therefore answers in QNames (`foaf:Person`) and `rdfs:label` text (`"personal mailbox"` for `mbox`) rather than bare local names.
+**The paper's "raw OWL hurts" result is a scoring artifact.** OntoAxiom reports that an LLM given the full OWL file (F1 = 0.323) does *worse* than one given only class/property name lists (0.431). Those two numbers came from scripts that disagreed on three axes: the name-list scorer splits camelCase and the raw-OWL scorer only lowercases; the first reports a **macro** mean and the second a **micro** F1; and they flip pair order on different axiom types. Every one of those differences penalizes the raw-OWL condition, because that is the one where the model reads real Turtle and therefore answers in QNames (`foaf:Person`) and `rdfs:label` text (`"personal mailbox"` for `mbox`) rather than bare local names. **0.431 and 0.323 were never the same statistic.**
 
-Rescoring the *same stored predictions* under one consistent normalizer flips the sign on both models — Claude 0.431 → **0.718**, Qwen 0.234 → **0.640** (unanimous, 8/8 ontologies). The correction changes 0 of 5,083 name-list pairs, so it cannot flatter the baseline, and it still under-credits raw OWL, since 51.8% of Claude's pairs are label text no normalizer here can match. Full analysis, method, and reproduction steps: [`benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md`](benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md).
+Rescoring the *same stored predictions* under one evaluator flips the sign on both models and under both averages: Claude 0.451 → **0.768** macro (0.397 → 0.686 micro), Qwen 0.246 → **0.673** macro, winning 33/43 and 33/38 cells respectively. `score_condition_d.py --legacy` reproduces the broken 0.323 exactly, so the bug is demonstrated rather than asserted. The correction moves 0 of 5,083 name-list pairs, so it cannot flatter the baseline, and it still under-credits raw OWL: 51.8% of Claude's pairs are label text no normalizer here can match. Full analysis and reproduction: [`benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md`](benchmark/ontoaxiom/ONTOAXIOM_SHOWDOWN.md).
 
-Corrected, reading the ontology (0.718) is level with SPARQL-extracting it (0.717). The tools' edge is **auditability, not F1**: every MCP pair traces to a query against real triples, whereas an LLM reading a file can still hallucinate a plausible pair and no F1 score will say which.
+Corrected, reading the ontology and SPARQL-extracting it are **at parity** — raw OWL wins macro (0.768 vs 0.713), extraction wins micro (0.717 vs 0.686). So the tools' edge is **auditability, not F1**: every MCP pair traces to a query against real triples, whereas an LLM reading a file can still hallucinate a plausible pair and no F1 score will say which.
 
 ### Pizza Ontology — Manchester Tutorial
 

@@ -103,39 +103,52 @@ After fixing the scorer (not the extraction), MCP jumped from 0.305 to 0.717. Th
 
 The OntoAxiom paper reports a **surprising result**: an LLM handed the *full raw OWL file* (condition D, F1 = 0.323) does **worse** than the same LLM handed only *class/property name lists* (condition A, F1 = 0.431). Giving the model more information appears to make it worse. The natural explanation is contamination — the model recalls these famous ontologies better than it reads them.
 
-That explanation is wrong. **Conditions A and D were scored with two different normalizers.**
+That explanation is wrong. The two conditions were never scored the same way. They disagreed on **three** independent axes, and every one of them penalizes D:
 
-| | normalizer | camelCase split | prefix strip |
+| | Condition A (`run_bare_llm_benchmark.py`) | Condition D (`score_condition_d.py`) |
+| --- | --- | --- |
+| **Normalizer** | splits camelCase | **lowercase only** |
+| **Averaging** | **macro** — mean of per-cell F1 | **micro** — pooled TP/FP/FN |
+| **Pair flip** | `domain`/`range` only | **every** axiom type |
+
+The normalizer gap is the big one, and it is not random. Condition D is the condition where the model *reads real Turtle*, so it answers the way Turtle is written — in QNames (`foaf:Person`, `mo:Arranger`, `:DateTimeDescription`) and in `rdfs:label` text (`"personal mailbox"` where ground truth stores `mbox`). Ground truth holds bare, camelCase-split local names. A lowercase-only normalizer matches none of those forms. Condition A is structurally immune: it is *given* bare names and echoes them straight back, so there is never a prefix to strip.
+
+The averaging gap compounds it. A's headline 0.431 is a **macro** mean; D's 0.323 is a **micro** F1, dominated by a handful of enormous axiom sets (Pizza's `disjoint` alone carries 785 ground-truth pairs). **0.431 and 0.323 are not the same statistic and never were.**
+
+The benchmark penalized condition D for the one behaviour that reading the file causes, then compared the result against a different summary statistic.
+
+### Corrected: every condition, one evaluator
+
+Rescoring the **same stored predictions** — no new inference, no changed extraction — under a shared normalizer, `domain`/`range`-only flipping, and both averages reported (`score_all_conditions.py`):
+
+| Model | Condition | Input | macro F1 | micro F1 |
+| --- | --- | --- | --- | --- |
+| Claude Opus | A | Name lists | 0.451 | 0.397 |
+| Claude Opus | **D** | **Full raw OWL** | **0.768** | **0.686** |
+| Qwen3-Coder-30B | A | Name lists | 0.223 | 0.176 |
+| Qwen3-Coder-30B | **D** | **Full raw OWL** | **0.673** | **0.667** |
+| MCP + SPARQL | C | Full OWL | 0.713 | 0.717 |
+
+Restricted to the cells **both** conditions scored, so no coverage difference can leak into the delta:
+
+| Model | macro A → D | micro A → D | cells won by raw OWL |
 | --- | --- | --- | --- |
-| Condition A | `run_bare_llm_benchmark.py::normalize` | yes | no |
-| Condition D | `score_condition_d.py::normalize_pair` | **no** | no |
+| Claude Opus | 0.451 → 0.768 (**+0.316**) | 0.397 → 0.686 (**+0.290**) | 33 / 43 |
+| Qwen3-Coder-30B | 0.246 → 0.673 (**+0.427**) | 0.232 → 0.667 (**+0.435**) | 33 / 38 |
 
-The asymmetry lands entirely on D, and it is not random. Condition D is the condition where the model *reads real Turtle*, so it answers the way Turtle is written — in QNames (`foaf:Person`, `mo:Arranger`, `:DateTimeDescription`) and in `rdfs:label` text (`"personal mailbox"` where ground truth stores `mbox`). Ground truth holds bare, camelCase-split local names. A lowercase-only normalizer matches none of those forms. Condition A is structurally immune: it is *given* bare names and echoes them straight back, so there is never a prefix to strip.
+**The sign flips, on both models, under both averages.** Raw OWL does not hurt. It helps, by a lot.
 
-The benchmark penalized condition D for the one behaviour that reading the file causes.
+### Why this is a real correction and not a thumb on the scale
 
-Rescoring the **same stored predictions** under condition A's own normalizer — no new inference, no changed extraction:
+1. **The legacy number reproduces exactly.** `python3 score_condition_d.py --legacy` returns **micro F1 = 0.323** — the paper's figure to three decimals. The bug is identified, not inferred.
+2. **The fix cannot flatter condition A.** Stripping prefixes changes **0 of 5,083** condition-A pairs, because bare name lists contain no prefixes. A's numbers are unmoved.
+3. **Both averages now agree.** Macro and micro independently rank D above A on both models. The conclusion does not depend on which statistic you prefer — which is precisely the property the original comparison lacked.
+4. **Flipping was made *stricter* for D, not looser.** The old D scorer flipped every axiom type; it now flips only `domain`/`range`, matching A. D wins anyway.
+5. **It still under-credits D.** 51.8% of Claude's condition-D pairs are `rdfs:label` text that no normalizer here maps back to a local name. 0.768 is a floor, not a ceiling.
 
-| Condition | Input | Paper's scorer | A-consistent scorer |
-| --------- | ----- | -------------- | ------------------- |
-| **Claude Opus A** | Name lists | 0.431 | 0.431 *(unchanged)* |
-| **Claude Opus D** | Full raw OWL | 0.361 † | **0.718** |
-| **Qwen3-Coder-30B A** | Name lists | 0.214 | 0.214 *(unchanged)* |
-| **Qwen3-Coder-30B D** | Full raw OWL | 0.366 | **0.640** |
+Where D lands is worth sitting with. On macro, Claude reading the raw file (0.768) now **beats** deterministic SPARQL extraction (0.713); on micro, extraction still wins (0.717 vs 0.686). Those cut in opposite directions, so the honest summary is **parity, not victory for either**. The consequence for this project is uncomfortable and worth saying plainly: **once you stop mis-scoring it, reading the ontology is worth about as much as extracting it, and the tools' remaining advantage is auditability, not F1.** Every MCP pair traces to a SPARQL query against real triples. An LLM reading a file can still hallucinate a plausible pair, and no F1 score will tell you which one.
 
-† Our faithful re-implementation of `score_condition_d.py` scores Claude D at 0.361 against the paper's reported 0.323; the residual gap is most likely domain/range pair-order handling. The direction and magnitude reproduce.
-
-**The sign flips, on both models.** Raw OWL does not hurt — it helps, by a lot. For Qwen the effect is unanimous: raw OWL wins on **8 of 8** ontologies (ERA is excluded from D — its 558 KB Turtle exceeds the local model's context window), lifting the common-subset average from 0.234 to 0.640.
-
-Three checks that the fix is not just tilting the board:
-
-1. **It cannot flatter condition A.** The prefix strip changes **0 of 5,083** condition-A pairs, because bare name lists contain no prefixes. A's numbers are byte-identical before and after.
-2. **It is symmetric on pair order.** Condition A's scorer already tries the flipped orientation for `domain`/`range`, and so does the MCP benchmark, so condition D gets the same treatment and no more. With flipping disabled everywhere, Claude D still scores **0.561** — above A's 0.431. The conclusion does not depend on the flip.
-3. **It still under-credits D.** 51.8% of Claude's condition-D pairs are `rdfs:label` text that even the corrected normalizer cannot match to a local name. 0.718 is a floor, not a ceiling.
-
-Note where 0.718 lands: effectively level with deterministic SPARQL extraction (0.717). Read that carefully — the two were produced by different scripts, so treat the parity as indicative rather than exact. The point is not that reading a file equals querying it. It is that **once you stop mis-scoring it, reading the ontology is worth roughly as much as extracting it — and the tools' remaining advantage is auditability, not raw F1.** Every MCP pair traces to a SPARQL query against real triples; an LLM reading a file can still hallucinate, and nothing in an F1 score tells you which pairs those were.
-
-This is the second scoring bug found in this benchmark, after the MCP camelCase/pair-order bugs above. Both inflated the apparent superiority of *guessing from memory* over *using the actual ontology*.
+This is the **second** scoring bug found in this benchmark, after the MCP camelCase and pair-order bugs above. Both pointed the same way: both inflated the apparent superiority of *guessing from memory* over *using the actual ontology*.
 
 ## Cross-Model Ablation
 
@@ -143,13 +156,15 @@ Since bare-LLM scores on famous ontologies (Pizza, FOAF, OWL-Time) are contamina
 
 | | Claude Opus 4.8 | Qwen3-Coder-30B (local, 8-bit MLX) |
 | --- | --- | --- |
-| A: name lists | 0.431 | 0.214 |
-| D: raw OWL, A-consistent scorer | 0.718 | 0.640 |
+| A: name lists (macro) | 0.451 | 0.223 |
+| D: raw OWL (macro) | 0.768 | 0.673 |
 | Direction | raw OWL helps | raw OWL helps |
 
-Claude's *name-list* score is twice Qwen's (0.431 vs 0.214) while its *raw-OWL* score is only modestly higher (0.718 vs 0.640). That gap is exactly the shape contamination predicts: recall from memory is where the frontier model pulls ahead; reading a file is a more level playing field. So the reviewers' contamination instinct was sound — it just was not what produced the paper's headline result.
+Claude's *name-list* score is roughly **double** Qwen's (0.451 vs 0.223), while its *raw-OWL* score is only modestly higher (0.768 vs 0.673). That is exactly the shape contamination predicts: recall from memory is where the frontier model pulls ahead, and reading a file is a far more level playing field. The reviewers' contamination instinct was sound — it just was not what produced the paper's headline result. **Contamination inflates condition A; it does not explain why D scored below it. The scorer does.**
 
-Qwen condition A is a **9/9-ontology** average. An earlier run reported 0.247, but that was a 7/9 average: ERA (459 properties) and MUSIC exceeded an 8,192-token cap and truncated mid-JSON, and the harness silently dropped them. Both scripts now raise the cap to 32,768, surface `finish_reason`, salvage complete pairs from a truncated prefix, and print which ontologies were truncated, failed, or skipped.
+Qwen condition A is a **9/9-ontology** run. An earlier pass reported 0.247, but that was a 7/9 average: ERA (459 properties) and MUSIC exceeded an 8,192-token cap, truncated mid-JSON, and were silently dropped from the mean while Claude's figure covered all nine. Both ablation scripts now raise the cap to 32,768, surface `finish_reason`, salvage complete pairs from a truncated prefix, and print exactly which ontologies were truncated, failed, or skipped. ERA is excluded from condition D on Qwen: its 558 KB Turtle exceeds the local model's context window, which is why the A-vs-D table above is restricted to common cells.
+
+Numbers here are **single-run**, not averaged over seeds, at temperature 0.2. The gaps are large enough that seed noise is unlikely to reverse them, but treat the third decimal as decoration.
 
 ## What This Demonstrates
 
@@ -157,11 +172,11 @@ Qwen condition A is a **9/9-ontology** average. An earlier run reported 0.247, b
 
 2. **Claude Opus knows ontology structure** — even without tools, it gets F1 = 0.431 from name lists alone, beating o1's 0.197 by 119%.
 
-3. **Tools add verifiability, not just accuracy** — once condition D is scored correctly it reaches 0.718, level with SPARQL extraction's 0.717. Accuracy alone no longer justifies the tools; **auditability does**. Bare Claude can hallucinate a plausible axiom pair and an F1 score will not tell you which one. Every MCP pair traces to a query against real triples.
+3. **Tools add verifiability, not accuracy** — scored correctly, Claude reading the raw file reaches 0.768 macro / 0.686 micro against SPARQL extraction's 0.713 / 0.717. Each wins one average; call it parity. Accuracy alone therefore does **not** justify the tools. **Auditability does.** Bare Claude can hallucinate a plausible axiom pair and no F1 score will tell you which one. Every MCP pair traces to a query against real triples.
 
 4. **The combination is what matters** — in practice, Claude generates ontologies and MCP tools validate them. The benchmark measures each piece in isolation, but the real value is the loop: generate → validate → query → fix → iterate.
 
-5. **Scoring methodology is the whole ballgame** — this benchmark has now yielded **two** scoring bugs, each of which happened to favour guessing-from-memory over using the real ontology. Fixing camelCase and pair order took MCP from 0.305 to 0.717. Fixing normalizer asymmetry took condition D from 0.361 to 0.718 and **reversed the paper's headline finding** on two independent models. No extraction logic changed in either case. When a benchmark reports a counterintuitive result, suspect the scorer before you believe the phenomenon.
+5. **Scoring methodology is the whole ballgame** — this benchmark has now yielded **two** scoring bugs, and both happened to favour guessing-from-memory over using the real ontology. Fixing camelCase and pair order took MCP from 0.305 to 0.717. Fixing the normalizer, averaging, and flip asymmetries took condition D from 0.323 to 0.686 micro and **reversed the paper's headline finding** on two independent models, under both averages. No extraction logic changed in either case; only the scorer did. When a benchmark reports a counterintuitive result, suspect the scorer before you believe the phenomenon.
 
 ## Important: Not an Apples-to-Apples Comparison
 
@@ -195,6 +210,13 @@ on `localhost:8080`; `--backend claude` needs `ANTHROPIC_API_KEY`.
 
 ```bash
 cd benchmark/ontoaxiom
+
+# Every condition under one evaluator, macro and micro side by side
+python3 score_all_conditions.py
+
+# Condition D alone. --legacy reproduces the paper's broken micro F1 = 0.323 exactly.
+python3 score_condition_d.py
+python3 score_condition_d.py --legacy
 
 # Condition A — class/property name lists only (same input as the paper)
 python3 run_bare_llm_ablation.py --backend qwen
