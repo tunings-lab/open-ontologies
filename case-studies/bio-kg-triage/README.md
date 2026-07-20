@@ -20,25 +20,32 @@ evidence. It covers all three with three grounded layers.
 Three layers, each built from a real public source, typed with a real ontology, and validated by
 the closed-world gate (full table in [`results/SUMMARY.md`](results/SUMMARY.md)):
 
-| Layer | Source | Grounded triples | Closed-world violations | Ungrounded twin |
-|---|---|--:|--:|---|
-| Structured (target-disease) | Open Targets + Biolink | 284 | **0** | caught |
-| Literature | PubTator3 + Biolink | 169 | **0** | caught |
-| Antimicrobial resistance | CARD / ARO | 1283 | **0** | caught |
+| Layer | Source | Ontology policed | Grounded triples | Closed-world result |
+|---|---|---|--:|---|
+| Structured (target-disease) | Open Targets | Biolink | 284 | **0** violations; twin caught |
+| Literature | PubTator3 | Biolink | 169 | **0** violations; twin caught |
+| AMR (resistance-to-drug) | CARD / ARO | ARO | 1,283 | **0** violations; twin caught |
+| AMR pathogen linkage | CARD + NCBI taxonomy | ARO + Biolink + NCBITaxon | 20,692 | fabricated taxid caught; 17 retired ids flagged |
 
-In every layer the grounded KG has **0 SHACL and 0 closed-world vocabulary violations**, and an
-ungrounded twin, identical but for one fabricated term (a nonexistent Biolink predicate, or a
-nonexistent ARO id), still reports `conforms=true` under SHACL while the closed-world gate rejects
-it. The same open-world hole, on the biomedical vocabulary and on a third ontology (ARO).
+In the first three layers the grounded KG has **0 SHACL and 0 closed-world vocabulary violations**,
+and an ungrounded twin, identical but for one fabricated term, still reports `conforms=true` under
+SHACL while the closed-world gate rejects it. The same open-world hole, across the biomedical
+vocabulary, a second ontology (ARO), and a third (NCBITaxon).
 
 - **Structured** ([`src/pipeline.py`](src/pipeline.py)): 40 live gene-disease associations from the
   **Open Targets Platform**, typed with the **Biolink Model** (868 declared terms).
 - **Literature** ([`src/pubtator.py`](src/pubtator.py)): 57 gene-disease relations machine-extracted
-  by **PubTator3** from 40 PubMed abstracts across the eight target genes. This is the
-  fragmented-literature-to-KG step, grounded.
+  by **PubTator3** from 40 PubMed abstracts across the eight target genes. The fragmented-literature-
+  to-KG step, grounded.
 - **AMR** ([`src/amr.py`](src/amr.py)): 800 of 5,053 real "confers resistance to" relationships from
-  **CARD's Antibiotic Resistance Ontology** (8,564 declared terms); the gate polices the ARO
-  namespace, showing it generalises to a third ontology and the AMR domain.
+  **CARD's Antibiotic Resistance Ontology** (8,564 declared terms); the gate polices the ARO namespace.
+- **AMR pathogen linkage** ([`src/pathogen.py`](src/pathogen.py)): 6,404 gene-organism edges over 740
+  organisms from **CARD's card.json**, policing **three namespaces at once**, ARO for the gene, Biolink
+  for the types and `in_taxon` predicate, and **NCBITaxon against the current NCBI taxonomy**
+  (2,871,791 taxids from `nodes.dmp`). A fabricated taxon id is caught; and, run against the current
+  taxonomy, the gate flags **17 organism ids in CARD as no longer current**, all confirmed
+  retired-and-merged in NCBI's `merged.dmp`. That is a real data-freshness signal that open-world
+  SHACL, and a naive "is it a number" check, both miss.
 
 ## Triage
 
@@ -71,17 +78,19 @@ guarantees the edges use only real terms before they are committed. Neither does
 ./run-demo.sh     # fetches Biolink, ARO, live Open Targets and PubTator3 data; builds + validates all three layers
 ```
 
-Requires Python 3.10+ and network access (Open Targets GraphQL and PubTator3 are queried live).
+Requires Python 3.10+ and network access (Open Targets, PubTator3, CARD and the NCBI taxonomy dump
+are fetched live). The pathogen layer downloads the 75 MB NCBI taxdump once.
 
 ## Honest scope
 
-See [`BUILD_REPORT.md`](BUILD_REPORT.md). What is built and validated: the structured target-disease
-layer (Open Targets), the literature front end (PubTator3 relations), and the AMR layer (CARD/ARO),
-each with the closed-world gate demonstrated on real data. Remaining honest limits: the AMR layer
-uses a deterministic 800-edge slice of ARO's 5,053 resistance relationships and does not yet link
-resistance genes to pathogens via NCBITaxon (CARD prevalence data is the next input); PubTator3's
-associations are its own machine extraction, with its confidence scores, not re-verified by us; and
-the triage ranks on Open Targets' own score, presented with provenance, not a new scoring method.
+See [`BUILD_REPORT.md`](BUILD_REPORT.md). Built and validated: the structured target-disease layer
+(Open Targets), the literature front end (PubTator3), the AMR resistance-to-drug layer (CARD/ARO),
+and the AMR pathogen linkage (CARD + NCBITaxon). Remaining honest limits: the resistance-to-drug
+layer uses a deterministic 800-edge slice of ARO's 5,053 relationships (logged, not hidden);
+PubTator3's associations are its own machine extraction with its confidence scores, not re-verified
+by us; and the triage ranks on Open Targets' own score, presented with provenance, not a new scoring
+method. The 17 retired taxon ids the pathogen gate flags are a feature, not an error: they are real
+but deprecated NCBI ids that CARD still carries.
 
 ---
 

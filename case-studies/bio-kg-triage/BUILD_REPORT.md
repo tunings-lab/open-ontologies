@@ -11,6 +11,8 @@ in `results/` is produced by `src/pipeline.py`; none is hand-entered.
 | Open Targets Platform | api.platform.opentargets.org/api/v4/graphql (live) | structured gene-disease associations + scores |
 | PubTator3 (NLM) | ncbi.nlm.nih.gov/research/pubtator3-api (live) | literature-extracted gene-disease relations |
 | CARD / ARO | purl.obolibrary.org/obo/aro.obo (~76 k lines) | AMR vocabulary + real "confers resistance to" relationships |
+| CARD data | card.mcmaster.ca/latest/data (card.json, 4.6 MB tar) | resistance-gene to organism (NCBI taxid) links |
+| NCBI taxonomy | ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz (75 MB) | current valid taxids (nodes.dmp) + retired ids (merged.dmp) |
 
 Fetched 2026-07-20. Targets queried: EGFR, TP53, KRAS, BRCA1, PTEN, BRAF, ALK, MYC (8 real human
 genes by Ensembl id); top 5 associated diseases each -> 40 associations.
@@ -52,6 +54,18 @@ namespace. Grounded KG 1,283 triples, **0** violations; the ungrounded twin poin
 fabricated `ARO_9999999` and the gate rejects it. This shows the gate generalising to a third
 biomedical ontology.
 
+## AMR pathogen linkage (`src/pathogen.py`)
+
+CARD's `card.json` records, for each resistance determinant, the organisms its reference sequences
+come from (NCBI taxid). We build 6,404 `gene in_taxon organism` edges over 740 organisms and police
+three namespaces at once: ARO (the gene) against ARO's terms, Biolink (the `in_taxon` predicate and
+the `Gene`/`OrganismTaxon` types) against Biolink, and NCBITaxon (the organism) against the current
+NCBI taxonomy (2,871,791 taxids parsed from `nodes.dmp`). SHACL conforms. The gate catches an
+injected fabricated taxid (`NCBITaxon_99999999`). Separately, run against the current taxonomy, it
+flags 17 organism ids in CARD as not current; cross-checking `merged.dmp` confirms all 17 are
+retired-and-merged taxa (0 unexplained), so this is a data-freshness catch, not fabrication, and it
+is a real signal SHACL and a well-formedness check both miss.
+
 ## The structured result, precisely
 
 - Grounded KG (284 triples): SHACL `conforms=true`, **0** closed-world violations.
@@ -62,10 +76,10 @@ biomedical ontology.
 
 ## Limits of the claim (do not overstate)
 
-1. **AMR pathogen linkage is not built.** The AMR layer grounds resistance-determinant to drug
-   edges from ARO and validates them, but does not yet link resistance genes to pathogens via
-   NCBITaxon; CARD prevalence data is the next input. The AMR KG also uses a deterministic 800-edge
-   slice of ARO's 5,053 resistance relationships (logged, not silent).
+1. **The resistance-to-drug layer uses a slice.** It builds from a deterministic 800-edge slice of
+   ARO's 5,053 resistance relationships (logged, not silent); the pathogen layer uses all 6,404
+   gene-organism links. The 17 retired taxon ids the pathogen gate flags are real deprecated NCBI
+   ids CARD still carries, reported as a finding, not smoothed over.
 2. **The triage score is Open Targets'.** We did not build a scoring model. The contribution is
    that ranking on a *validated* graph cannot surface a fabricated edge; the score itself is a
    real external silver-truth signal, presented with provenance.

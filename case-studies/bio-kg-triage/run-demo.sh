@@ -23,3 +23,8 @@ echo; echo "See results/SUMMARY.md, results/triage.md, results/results.json"
 ./.venv/bin/python src/pubtator.py
 ./.venv/bin/python src/amr.py
 echo; echo "See results/SUMMARY.md, results/results.json, results_literature.json, results_amr.json"
+
+# --- AMR pathogen linkage (CARD card.json + NCBI taxonomy) ---
+[ -f data/card/card.json ] || { curl -sL https://card.mcmaster.ca/latest/data -o data/card-data.tar.bz2; mkdir -p data/card; tar xjf data/card-data.tar.bz2 -C data/card; }
+[ -f data/nodes.dmp ] || { curl -sL https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz -o data/taxdump.tar.gz; tar xzf data/taxdump.tar.gz -C data nodes.dmp merged.dmp delnodes.dmp; }
+./.venv/bin/python src/pathogen.py
