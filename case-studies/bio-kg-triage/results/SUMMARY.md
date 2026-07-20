@@ -1,10 +1,15 @@
-# Results summary
+# Results summary - three grounded layers
 
-Vocabulary: **Biolink Model** (868 declared terms). Associations: **Open Targets Platform** (40 real gene-disease edges, live GraphQL).
+Every layer builds a KG from a REAL public source, types it with a real ontology, and runs the closed-world vocabulary gate. In every layer the grounded KG has **0 closed-world violations**, and an ungrounded twin (one fabricated term) passes SHACL but is caught by the gate.
 
-| Knowledge graph | Triples | Biolink terms used | SHACL | Closed-world violations |
-|---|--:|--:|--:|--:|
-| Grounded (real Biolink predicate) | 284 | 3 | conforms | **0** |
-| Ungrounded (fabricated predicate) | 284 | 3 | conforms | **1** |
+| Layer | Source | Grounded triples | Closed-world violations | Ungrounded fake |
+|---|---|--:|--:|---|
+| Structured (target-disease) | Open Targets + Biolink | 284 | 0 | caught |
+| Literature | PubTator3 + Biolink | 169 | 0 | caught |
+| Antimicrobial resistance | CARD/ARO | 1283 | 0 | caught |
 
-**Headline.** The grounded KG built from 40 real Open Targets associations has **0 SHACL violations and 0 closed-world vocabulary violations**. Swapping the one real Biolink predicate (`gene_associated_with_condition`) for a plausible-but-nonexistent one (`associated_with_disease`) leaves SHACL reporting `conforms=true`, while the closed-world gate rejects it. The correctness gate works on the biomedical vocabulary exactly as on schema.org and IES4.
+- **Structured**: 40 live Open Targets gene-disease associations, Biolink-typed.
+- **Literature**: 57 gene-disease relations machine-extracted by PubTator3 from 40 PubMed abstracts; all 8 target genes carry literature edges (ALK, BRAF, BRCA1, EGFR, KRAS, MYC, PTEN, TP53).
+- **AMR**: 800 of 5053 real 'confers resistance to' relationships from CARD's Antibiotic Resistance Ontology (8564 declared terms); the gate polices the ARO namespace, a third ontology.
+
+Triage (structured layer), top hypotheses by Open Targets score, each a validated Biolink triple: see [`triage.md`](triage.md).

@@ -11,26 +11,34 @@ before it enters the graph. It reuses, unchanged, the correctness gate benchmark
 schema.org and IES4 in [onto-correctness-bench](../onto-correctness-bench/README.md), now on
 the biomedical vocabulary and on real data.
 
-Built for Encode / ARIA Challengescape items #42 (target discovery relies on manual literature
-reasoning), #48 (no literature-to-KG synthesis tools) and, as an extension, #60 (fragmented AMR
-evidence).
+Built for Encode / ARIA Challengescape items on target discovery relying on manual literature
+reasoning, the lack of literature-to-KG synthesis tools, and fragmented antimicrobial-resistance
+evidence. It covers all three with three grounded layers.
 
 ## The result
 
-Deterministic run of [`src/pipeline.py`](src/pipeline.py) over live data (full table in
-[`results/SUMMARY.md`](results/SUMMARY.md), raw data in [`results/results.json`](results/results.json)):
+Three layers, each built from a real public source, typed with a real ontology, and validated by
+the closed-world gate (full table in [`results/SUMMARY.md`](results/SUMMARY.md)):
 
-| Knowledge graph | Triples | Biolink terms | SHACL | Closed-world violations |
-|---|--:|--:|--:|--:|
-| Grounded (real Biolink predicate) | 284 | 3 | conforms | **0** |
-| Ungrounded (fabricated predicate) | 284 | 3 | conforms | **1** |
+| Layer | Source | Grounded triples | Closed-world violations | Ungrounded twin |
+|---|---|--:|--:|---|
+| Structured (target-disease) | Open Targets + Biolink | 284 | **0** | caught |
+| Literature | PubTator3 + Biolink | 169 | **0** | caught |
+| Antimicrobial resistance | CARD / ARO | 1283 | **0** | caught |
 
-Built from **40 real gene-disease associations** pulled live from the **Open Targets Platform**,
-typed with the **Biolink Model** (868 declared terms). The grounded KG has **0 SHACL and 0
-closed-world vocabulary violations**. Swap the one real Biolink predicate
-(`gene_associated_with_condition`) for a plausible-but-nonexistent one (`associated_with_disease`)
-and SHACL still reports `conforms=true`, while the closed-world gate rejects it. The same open-world
-hole, on the biomedical vocabulary.
+In every layer the grounded KG has **0 SHACL and 0 closed-world vocabulary violations**, and an
+ungrounded twin, identical but for one fabricated term (a nonexistent Biolink predicate, or a
+nonexistent ARO id), still reports `conforms=true` under SHACL while the closed-world gate rejects
+it. The same open-world hole, on the biomedical vocabulary and on a third ontology (ARO).
+
+- **Structured** ([`src/pipeline.py`](src/pipeline.py)): 40 live gene-disease associations from the
+  **Open Targets Platform**, typed with the **Biolink Model** (868 declared terms).
+- **Literature** ([`src/pubtator.py`](src/pubtator.py)): 57 gene-disease relations machine-extracted
+  by **PubTator3** from 40 PubMed abstracts across the eight target genes. This is the
+  fragmented-literature-to-KG step, grounded.
+- **AMR** ([`src/amr.py`](src/amr.py)): 800 of 5,053 real "confers resistance to" relationships from
+  **CARD's Antibiotic Resistance Ontology** (8,564 declared terms); the gate polices the ARO
+  namespace, showing it generalises to a third ontology and the AMR domain.
 
 ## Triage
 
@@ -60,19 +68,20 @@ guarantees the edges use only real terms before they are committed. Neither does
 ## Reproduce
 
 ```bash
-./run-demo.sh     # fetches Biolink + live Open Targets data, builds and validates the KG
+./run-demo.sh     # fetches Biolink, ARO, live Open Targets and PubTator3 data; builds + validates all three layers
 ```
 
-Requires Python 3.10+ and network access (Open Targets GraphQL is queried live).
+Requires Python 3.10+ and network access (Open Targets GraphQL and PubTator3 are queried live).
 
 ## Honest scope
 
-See [`BUILD_REPORT.md`](BUILD_REPORT.md). In short: this grounds and validates the target-disease
-layer against Open Targets and Biolink, and demonstrates the closed-world gate on real biomedical
-data. It does not yet include the literature-extraction front end (PubTator3) or the AMR layer
-(CARD + NCBITaxon) named in the Challengescape items; those are documented extensions, not built
-here. The triage ranks on Open Targets' own score, presented with provenance, not a new scoring
-method.
+See [`BUILD_REPORT.md`](BUILD_REPORT.md). What is built and validated: the structured target-disease
+layer (Open Targets), the literature front end (PubTator3 relations), and the AMR layer (CARD/ARO),
+each with the closed-world gate demonstrated on real data. Remaining honest limits: the AMR layer
+uses a deterministic 800-edge slice of ARO's 5,053 resistance relationships and does not yet link
+resistance genes to pathogens via NCBITaxon (CARD prevalence data is the next input); PubTator3's
+associations are its own machine extraction, with its confidence scores, not re-verified by us; and
+the triage ranks on Open Targets' own score, presented with provenance, not a new scoring method.
 
 ---
 

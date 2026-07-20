@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 data/biolink-model.yaml
+data/aro.obo
+data/*.obo

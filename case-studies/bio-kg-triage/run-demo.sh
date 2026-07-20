@@ -17,3 +17,9 @@ print("Biolink declared terms:", len(cl|sl))
 PY
 ./.venv/bin/python src/pipeline.py
 echo; echo "See results/SUMMARY.md, results/triage.md, results/results.json"
+
+# --- literature front end (PubTator3) and AMR layer (CARD/ARO) ---
+[ -f data/aro.obo ] || curl -sL http://purl.obolibrary.org/obo/aro.obo -o data/aro.obo
+./.venv/bin/python src/pubtator.py
+./.venv/bin/python src/amr.py
+echo; echo "See results/SUMMARY.md, results/results.json, results_literature.json, results_amr.json"

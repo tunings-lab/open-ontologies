@@ -8,7 +8,9 @@ in `results/` is produced by `src/pipeline.py`; none is hand-entered.
 | Source | Endpoint | Use |
 |---|---|---|
 | Biolink Model | raw.githubusercontent.com/biolink/biolink-model (`biolink_model.yaml`, ~518 KB) | declared vocabulary (classes + slots) = the closed set |
-| Open Targets Platform | api.platform.opentargets.org/api/v4/graphql (live) | real gene-disease associations + scores |
+| Open Targets Platform | api.platform.opentargets.org/api/v4/graphql (live) | structured gene-disease associations + scores |
+| PubTator3 (NLM) | ncbi.nlm.nih.gov/research/pubtator3-api (live) | literature-extracted gene-disease relations |
+| CARD / ARO | purl.obolibrary.org/obo/aro.obo (~76 k lines) | AMR vocabulary + real "confers resistance to" relationships |
 
 Fetched 2026-07-20. Targets queried: EGFR, TP53, KRAS, BRCA1, PTEN, BRAF, ALK, MYC (8 real human
 genes by Ensembl id); top 5 associated diseases each -> 40 associations.
@@ -31,7 +33,26 @@ genes by Ensembl id); top 5 associated diseases each -> 40 associations.
 4. **Validation.** SHACL (pySHACL, a realistic non-closed Gene shape requiring a label) and the
    closed-world gate (every `biolink:` predicate and `rdf:type` value must be declared).
 
-## The result, precisely
+## Literature layer (`src/pubtator.py`)
+
+For each of the 8 target genes we query PubTator3 for PMIDs, export the BioC-JSON, and keep only
+its machine-extracted **relations** whose two roles are a Gene and a Disease (types Association,
+Positive/Negative_Correlation, Cause). Each becomes a Biolink `gene_associated_with_condition`
+edge (gene by NCBI Gene id, disease by MeSH id). Result: 40 PMIDs, 40 annotated documents, 57
+unique gene-disease relations, grounded KG 169 triples with **0** closed-world violations; the
+ungrounded twin is caught. All 8 targets carry at least one literature edge.
+
+## AMR layer (`src/amr.py`)
+
+We parse `aro.obo`, take the declared ARO terms as the closed set (8,564 terms), and extract the
+real `confers_resistance_to_antibiotic` and `confers_resistance_to_drug_class` relationships
+(5,053 total; a deterministic sorted slice of 800 is used for a tidy artifact, logged not hidden).
+Each becomes a `resistance-determinant -> drug` edge with ARO IRIs. The gate polices the ARO
+namespace. Grounded KG 1,283 triples, **0** violations; the ungrounded twin points one edge at a
+fabricated `ARO_9999999` and the gate rejects it. This shows the gate generalising to a third
+biomedical ontology.
+
+## The structured result, precisely
 
 - Grounded KG (284 triples): SHACL `conforms=true`, **0** closed-world violations.
 - Ungrounded KG (284 triples): SHACL `conforms=true`, **1** closed-world violation
@@ -41,10 +62,10 @@ genes by Ensembl id); top 5 associated diseases each -> 40 associations.
 
 ## Limits of the claim (do not overstate)
 
-1. **Scope is the target-disease layer.** The literature-extraction front end (PubTator3 / PubMed)
-   and the AMR layer (CARD + NCBITaxon) named in Challengescape #42/#48/#60 are NOT built here.
-   They are the natural next stages; this case study proves the grounding-and-validation spine they
-   would feed into.
+1. **AMR pathogen linkage is not built.** The AMR layer grounds resistance-determinant to drug
+   edges from ARO and validates them, but does not yet link resistance genes to pathogens via
+   NCBITaxon; CARD prevalence data is the next input. The AMR KG also uses a deterministic 800-edge
+   slice of ARO's 5,053 resistance relationships (logged, not silent).
 2. **The triage score is Open Targets'.** We did not build a scoring model. The contribution is
    that ranking on a *validated* graph cannot surface a fabricated edge; the score itself is a
    real external silver-truth signal, presented with provenance.
