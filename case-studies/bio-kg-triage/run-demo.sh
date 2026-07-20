@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Reproduce bio-kg-triage end to end: fetch the Biolink vocabulary and live Open
+# Targets associations, build the grounded + ungrounded KGs, validate both.
+set -euo pipefail
+cd "$(dirname "$0")"
+if [ ! -d .venv ]; then python3 -m venv .venv; ./.venv/bin/pip -q install -r requirements.txt; fi
+mkdir -p data
+[ -f data/biolink-model.yaml ] || curl -sL https://raw.githubusercontent.com/biolink/biolink-model/master/src/biolink_model/schema/biolink_model.yaml -o data/biolink-model.yaml
+# rebuild the declared-vocabulary set from the Biolink model
+./.venv/bin/python - <<'PY'
+import yaml, json
+m=yaml.safe_load(open("data/biolink-model.yaml")); BASE="https://w3id.org/biolink/vocab/"
+pas=lambda n:"".join(w[:1].upper()+w[1:] for w in n.split())
+cl={BASE+pas(n) for n in (m.get("classes") or {})}; sl={BASE+n.replace(" ","_") for n in (m.get("slots") or {})}
+json.dump({"policed":[BASE],"declared":sorted(cl|sl)}, open("data/biolink_vocab.json","w"))
+print("Biolink declared terms:", len(cl|sl))
+PY
+./.venv/bin/python src/pipeline.py
+echo; echo "See results/SUMMARY.md, results/triage.md, results/results.json"
