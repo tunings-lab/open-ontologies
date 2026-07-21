@@ -73,3 +73,24 @@ Per-task outputs (including the raw model text, truncated) are saved under `resu
 `./run-demo.sh <models...>` reruns against a live endpoint (temperature 0). Model outputs can vary
 across server versions, but the raw-vs-verified separation is the stable, reproducible finding.
 rdflib at build time; models as listed.
+
+## Expansion: multi-domain, multi-hop (`src/verifiabench_multi.py`)
+
+A second authority (Gene Ontology, `go-basic.obo`, 48,329 term ids) and three task families:
+single-hop gene-disease (Biolink), GO annotation (a real GO term for a named biological process),
+and cross-ontology multi-hop (gene, disease and process, Biolink + GO in one graph). The oracle is
+closed-world across BOTH authorities: every `biolink:` term must be a declared Biolink term and every
+GO id a real GO id; multi-hop additionally requires the full structure from both authorities, so it
+cannot be gamed by getting one right and inventing the other.
+
+Result (6 models): Claude Opus 1.00 on all three families; Sonnet 0.75; Qwen3-Coder-30B 0.48 (1.00
+Biolink, 0.00 GO, 0.07 multi-hop); Haiku 0.43; the two small local models 0.00. The single-family
+benchmark had the 30B tied with Opus at 1.00; the multi-domain version breaks that tie and shows the
+30B's ontology competence is narrow (Biolink) rather than general (it hallucinates GO ids).
+
+**Caveat on the Claude runs.** The `claude -p` CLI loads the user's global CLAUDE.md and memory and
+boots the full agent harness per call (about 9 s of overhead, the reason the Claude models are the
+slow part; the calls are run concurrently to compensate). So the Claude numbers are "Claude Code with
+this machine's configuration answering", not a bare API model. The oracle scores term existence
+regardless, but a clean comparison would use the raw Anthropic API; that is a configuration change,
+not a change to the benchmark.

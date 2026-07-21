@@ -47,6 +47,30 @@ its misses are a missing typed disease, not an invented term). A fluency- or jud
 would rank the hallucinating models alongside the correct ones; the closed-world oracle cannot be
 gamed by producing plausible but nonexistent terms.
 
+## Expanded: two authorities, three task families
+
+The single-family benchmark above is the easy case. We extended it to a second authority (the
+**Gene Ontology**, 48,329 terms) and three task families, single-hop gene-disease (Biolink), GO
+annotation (emit a real GO term), and cross-ontology multi-hop (Biolink and GO in one graph), then
+re-ran six models (full table in [`results/SUMMARY_multi.md`](results/SUMMARY_multi.md)):
+
+| Model | Overall verified | Biolink | GO annotation | Multi-hop | Fabricated terms |
+|---|--:|--:|--:|--:|--:|
+| Claude Opus | **1.00** | 1.00 | 1.00 | 1.00 | 0 |
+| Claude Sonnet | **0.75** | 0.60 | 0.85 | 0.93 | 3 |
+| Qwen3-Coder-30B-A3B | **0.48** | 1.00 | 0.00 | 0.07 | 34 |
+| Claude Haiku | **0.43** | 0.77 | 0.20 | 0.07 | 28 |
+| Llama-3.2-3B | 0.00 | 0.00 | 0.00 | 0.00 | 110 |
+| Qwen2.5-3B | 0.00 | 0.00 | 0.00 | 0.00 | 167 |
+
+On the single-authority task the local Qwen3-Coder-30B tied Claude Opus at 1.00. Add a second
+ontology and multi-hop, and the tie breaks: **Opus scores 1.00 across all three families, the 30B
+collapses to 0.48**, perfect on Biolink but 0.00 on GO annotation (it fluently emits fabricated
+7-digit GO ids) and 0.07 on multi-hop. GO annotation is the discriminator; multi-hop is the hardest,
+because it cannot be gamed by getting one authority right and inventing the other. The single family
+called several models equal; the multi-domain version re-separates them and exposes cross-ontology
+hallucination the single family missed.
+
 ## Why this is the ownable gap
 
 - **Fluency and correctness are different axes.** Raw capability saturates at 1.00 for any competent
