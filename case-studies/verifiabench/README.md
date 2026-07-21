@@ -16,14 +16,19 @@ and reliability on realistic scientific workflows are asking for.
 ## The result
 
 Deterministic run of [`src/verifiabench.py`](src/verifiabench.py): 30 real gene-disease facts, each
-asking a model to write Biolink-typed RDF, graded by the closed-world oracle. Five open models over
-a local OpenAI-compatible endpoint (full table in [`results/SUMMARY.md`](results/SUMMARY.md)):
+asking a model to write Biolink-typed RDF, graded by the closed-world oracle. Nine models, five
+local open checkpoints (MLX) and Claude Haiku, Sonnet and Opus via `claude -p` (full table in
+[`results/SUMMARY.md`](results/SUMMARY.md)):
 
 | Model | Raw capability (fluency) | **Verified capability** | Mean term-existence | Fabricated terms |
 |---|--:|--:|--:|--:|
 | Qwen3-Coder-30B-A3B (8bit) | 1.00 | **1.00** | 1.00 | 0 |
-| Qwen2.5-3B | 1.00 | **0.00** | 0.51 | 65 |
+| Claude Opus | 1.00 | **1.00** | 1.00 | 0 |
+| Claude Haiku | 1.00 | **0.93** | 0.99 | 1 |
+| Qwen3.6-35B-A3B (8bit) | 1.00 | **0.77** | 0.92 | 7 |
+| Claude Sonnet | 1.00 | **0.73** | 1.00 | 0 |
 | Llama-3.2-3B | 1.00 | **0.00** | 0.51 | 49 |
+| Qwen2.5-3B | 1.00 | **0.00** | 0.51 | 65 |
 | gemma-2-2b | 0.23 | **0.00** | 0.06 | 21 |
 | Qwen2.5-0.5B | 0.00 | **0.00** | 0.00 | 0 |
 
@@ -31,12 +36,16 @@ a local OpenAI-compatible endpoint (full table in [`results/SUMMARY.md`](results
 benchmark would reward. **Verified capability** = a real `biolink:Gene`, a real `biolink:Disease`, a
 real association predicate, and zero fabricated terms.
 
-Three models produce structured Biolink RDF on every task (raw capability 1.00), yet two of them,
-Qwen2.5-3B and Llama-3.2-3B, score **0.00 verified**: roughly half of the terms they emit do not
-exist in Biolink. Only Qwen3-Coder-30B actually gets it right, 1.00 verified, 0 fabricated terms.
-A benchmark that graded on fluency, or asked an LLM to judge, would rank the hallucinating models
-near the top. The closed-world oracle separates them cleanly and cannot be gamed by producing
-plausible but nonexistent terms.
+Seven of nine models produce structured Biolink RDF on every task (raw capability 1.00), so fluency
+tells you almost nothing. Verified capability spans the full range. Two models tie at the top with
+perfect verified correctness and zero fabricated terms, one local (Qwen3-Coder-30B) and one frontier
+(Claude Opus). At the bottom, Qwen2.5-3B and Llama-3.2-3B look identical to the leaders on fluency
+yet score 0.00 verified, inventing roughly half of every term they emit. Two distinct failure modes
+the oracle exposes and fluency grading cannot: **hallucination** (the small local models, 49-65 fake
+terms) and **structural incompleteness** (Claude Sonnet, 0.73 verified with zero fabricated terms,
+its misses are a missing typed disease, not an invented term). A fluency- or judge-based benchmark
+would rank the hallucinating models alongside the correct ones; the closed-world oracle cannot be
+gamed by producing plausible but nonexistent terms.
 
 ## Why this is the ownable gap
 

@@ -9,9 +9,16 @@ Honest record of the benchmark, the oracle and the limits. Numbers in `results/`
   from the bio-kg-triage case study.
 - **Tasks:** 30 well-established gene-disease facts (BRCA1/breast cancer, HTT/Huntington disease,
   CFTR/cystic fibrosis, ...). Each task prompts the model to write Biolink-typed RDF asserting the fact.
-- **Models under test (local, open):** Qwen3-Coder-30B-A3B (8bit), Qwen2.5-3B, Llama-3.2-3B,
-  gemma-2-2b, Qwen2.5-0.5B, all served over a local MLX server on port 8080. The runner speaks the
-  OpenAI chat-completions API, so any endpoint works via `VB_API`.
+- **Models under test (9):** five local open checkpoints over a local MLX server on port 8080
+  (Qwen3-Coder-30B-A3B 8bit, Qwen3.6-35B-A3B 8bit, Qwen2.5-3B, Llama-3.2-3B, gemma-2-2b,
+  Qwen2.5-0.5B), and Claude Haiku, Sonnet and Opus via the `claude -p` CLI. The runner speaks the
+  OpenAI chat-completions API (any endpoint works via `VB_API`) and dispatches ids of the form
+  `claude:<alias>` to `claude -p --model <alias>`.
+- **Reasoning models.** Qwen3.6-35B is a reasoning model: it returns its chain-of-thought in a
+  `reasoning` field and the answer in `content`. We score the `content` (the answer) only, never the
+  chain-of-thought, and raised the token budget (`VB_MAXTOK=6000`) so it can finish reasoning and
+  emit the answer. Under the default 400-token budget it never reached `content` and scored a
+  spurious 0.00; that run was discarded, not published. The final 35B number uses the larger budget.
 
 ## The oracle (deterministic, no LLM judge)
 
@@ -31,13 +38,19 @@ Per-task outputs (including the raw model text, truncated) are saved under `resu
 
 ## The result, precisely
 
-- Raw capability saturates: Qwen2.5-3B, Llama-3.2-3B and Qwen3-Coder-30B all score 1.00.
-- Verified capability separates: Qwen3-Coder-30B 1.00 (0 fabricated terms); Qwen2.5-3B and
-  Llama-3.2-3B 0.00 (30/30 tasks contain a fabricated term, ~50% mean term-existence); gemma-2-2b
-  and Qwen2.5-0.5B produce little or no valid Biolink and score 0.00.
-- Manual spot-check confirms the oracle: Qwen3-Coder-30B emits real terms
-  (`biolink:Gene`, `biolink:Disease`, `biolink:causes`, `biolink:has_gene_product`) in valid
-  structure; the mid models emit genuine non-terms (`biolink:has_association`, `biolink:has_role`).
+- Raw capability saturates: 7 of 9 models score 1.00 (every competent model produces structured
+  Biolink RDF), so fluency is nearly uninformative.
+- Verified capability separates fully: Qwen3-Coder-30B and Claude Opus 1.00 (0 fabricated terms);
+  Claude Haiku 0.93; Qwen3.6-35B 0.77; Claude Sonnet 0.73; Qwen2.5-3B and Llama-3.2-3B 0.00 (30/30
+  tasks contain a fabricated term, ~50% term-existence); gemma-2-2b and Qwen2.5-0.5B produce little
+  or no valid Biolink.
+- Two failure modes the oracle distinguishes: **hallucination** (Qwen2.5-3B, Llama-3.2-3B emit
+  genuine non-terms such as `biolink:has_association`, `biolink:has_role`) and **structural
+  incompleteness** (Claude Sonnet: 0 fabricated terms but a missing typed `biolink:Disease` on some
+  tasks, so verified < 1 despite 1.00 term-existence).
+- Manual spot-check confirms the oracle in both directions: Qwen3-Coder-30B and Claude Opus emit
+  real terms in valid structure (verified 1.00), so the oracle is measuring a real capability, not
+  failing everything.
 
 ## Limits of the claim (do not overstate)
 
