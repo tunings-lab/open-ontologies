@@ -21,7 +21,7 @@
   "ungated_transitions": 1176,
   "ungated_unsafe": 672,
   "ungated_unsafe_rate": 0.5714,
-  "checker_latency_us": 0.356,
+  "checker_latency_us": 0.366,
   "trusted_core_lines": 31,
   "continuous_assurance": "every dispatched action carries a re-checked certificate (100%)"
 }

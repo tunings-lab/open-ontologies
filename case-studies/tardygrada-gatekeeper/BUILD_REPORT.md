@@ -54,10 +54,13 @@ dispatched, because the gate re-derives the outcome and re-checks the spec itsel
    repo verifies the *system* exhaustively, it does not ship a Coq/Lean proof of the checker
    function itself. That is the role of the Tardygrada formally-verified runtime (C core), the
    production vehicle for this gate; this is its reference specification and evidence.
-3. **Reference scenario, not a standard benchmark.** The warehouse-with-hazard is a reference model
-   in the spirit of the DeepMind AI Safety Gridworlds' irreversible-side-effect theme, not those
-   exact environments. Running the gate on AI Safety Gridworlds, Melting Pot, and against a neural
-   proposer verified with VNN-COMP-style tooling is the documented next step.
+3. **Two real benchmarks, one caveat each.** Beyond the warehouse, the gate runs on Island
+   Navigation using the official AI Safety Gridworlds map and safety definition (taken verbatim from
+   the repo; the live pycolab engine also loads and steps here, but it cannot teleport to arbitrary
+   states, so the exhaustive reachability is done over the same map with a faithful deterministic
+   model), and on Commons Harvest, a faithful reimplementation of the Melting Pot substrate's
+   regrowth dynamics (dm-meltingpot's dmlab2d/bazel engine does not build in this environment).
+   Gating a neural proposer verified with VNN-COMP-style tooling remains the next step.
 4. **Deterministic dynamics.** The transition function is deterministic; stochastic dynamics would
    require the certificate and check to range over successor distributions (a documented extension).
 
